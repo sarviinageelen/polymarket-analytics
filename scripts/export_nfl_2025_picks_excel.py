@@ -376,6 +376,8 @@ def style_header_row(ws: Any, row_number: int, start_column: int, end_column: in
 
 
 def add_table(ws: Any, name: str, start_row: int, end_row: int, end_column: int) -> None:
+    """Add an Excel Table; its own AutoFilter is the only filter definition needed."""
+
     if end_row < start_row:
         return
     ref = f"A{start_row}:{get_column_letter(end_column)}{end_row}"
@@ -411,7 +413,6 @@ def write_games_sheet(wb: Workbook, games: list[dict[str, Any]]) -> None:
         ws.cell(row_number, 8).fill = PatternFill("solid", fgColor=GREEN)
     add_table(ws, "GamesTable", 4, 4 + len(games), len(headers))
     ws.freeze_panes = "A5"
-    ws.auto_filter.ref = f"A4:{get_column_letter(len(headers))}{4 + len(games)}"
     widths = {1: 9, 2: 15, 3: 16, 4: 13, 5: 15, 6: 15, 7: 25, 8: 15, 9: 13, 10: 68, 11: 10, 12: 30, 13: 30, 14: 18, 15: 21, 16: 21}
     for column, width in widths.items():
         ws.column_dimensions[get_column_letter(column)].width = width
@@ -442,7 +443,6 @@ def write_summary_sheet(wb: Workbook, name: str, candidates: list[dict[str, Any]
                 cell.number_format = '$#,##0.00;[Red]-$#,##0.00'
     add_table(ws, f"{name.replace(' ', '').replace('(', '').replace(')', '').replace('+', 'P')}Table", 4, 4 + len(candidates), len(headers))
     ws.freeze_panes = "A5"
-    ws.auto_filter.ref = f"A4:{get_column_letter(len(headers))}{4 + len(candidates)}"
     widths = [34, 45, 24, 10, 9, 10, 9, 10, 16, 16, 10, 12, 14, 15, 15, 20]
     for column, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(column)].width = width
@@ -480,7 +480,6 @@ def write_ledger_sheet(wb: Workbook, name: str, rows: list[dict[str, Any]], filt
     if headers:
         add_table(ws, f"{name.replace(' ', '').replace('(', '').replace(')', '').replace('+', 'P')}Table", 4, 4 + len(rows), len(headers))
         ws.freeze_panes = "A5"
-        ws.auto_filter.ref = f"A4:{get_column_letter(len(headers))}{4 + len(rows)}"
     widths = {
         "Week / Stage": 15, "Stage": 15, "Date": 13, "Team A": 15, "Team B": 15,
         "Matchup": 25, "Winner": 15, "Resolution": 13, "Bettor": 34, "Wallet": 45, "Bettor Wins": 12,
