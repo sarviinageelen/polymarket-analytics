@@ -23,3 +23,7 @@ results/
 # Generated reports stay local; commit the Markdown methodology/report notes.
 reports/generated/
 reports/*.xlsx
+
+# The reviewed NFL moneyline workbook is explicitly published with the repo.
+!reports/generated/
+!reports/generated/nfl_2025_moneyline_picks.xlsx
