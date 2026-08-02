@@ -11,6 +11,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -85,6 +86,24 @@ def fetch_gamma_events(series_id: int, start_date: str, end_date: str) -> list[d
 
 def normalized_team(value: str) -> str:
     return "".join(character for character in value.lower() if character.isalnum())
+
+
+def matchup_teams(value: str) -> list[str]:
+    """Split common sports matchup labels into normalized team names."""
+
+    parts = re.split(r"\s+(?:vs\.?|at)\s+", value, flags=re.IGNORECASE)
+    return [normalized_team(part.strip()) for part in parts if part.strip()]
+
+
+def teams_match(local_pair: list[str], remote_pair: list[str]) -> bool:
+    """Allow ESPN's full team names to match Polymarket short labels."""
+
+    if len(local_pair) != 2 or len(remote_pair) != 2:
+        return False
+    return all(
+        any(left in right or right in left for right in remote_pair)
+        for left in local_pair
+    )
 
 
 def check(checks: list[dict], name: str, passed: bool, evidence: dict, *, severity: str = "high") -> None:
@@ -425,11 +444,14 @@ def external_checks(
             not_run(checks, "CLOB status spot check", {"error": repr(exc)})
         try:
             event_date = str(local_event.get("eventDate"))[:10].replace("-", "")
+            season = str(manifest_summary.get("season") or "").upper()
+            espn_sport = "football/nfl" if season.startswith("NFL") else "basketball/wnba"
             scoreboard = request_json(
-                f"https://site.api.espn.com/apis/site/v2/sports/basketball/wnba/scoreboard?dates={event_date}"
+                f"https://site.api.espn.com/apis/site/v2/sports/{espn_sport}/scoreboard?dates={event_date}"
             )
-            local_teams = {normalized_team(str(local_event.get("title") or ""))}
-            remote_pair = []
+            title = str(local_event.get("title") or "")
+            local_pair = matchup_teams(title)
+            remote_pairs = []
             for item in scoreboard.get("events", []) if isinstance(scoreboard, dict) else []:
                 for competition in item.get("competitions", []):
                     remote_pair = [
@@ -437,17 +459,14 @@ def external_checks(
                         for competitor in competition.get("competitors", [])
                     ]
                     if len(remote_pair) == 2:
-                        break
-                if len(remote_pair) == 2:
-                    break
-            title = str(local_event.get("title") or "")
-            teams_from_title = [normalized_team(part.strip()) for part in title.replace(" vs. ", " vs ").split(" vs ")]
-            teams_match = len(teams_from_title) == 2 and set(teams_from_title) == set(remote_pair)
-            check(checks, "ESPN schedule spot check", teams_match, {
+                        remote_pairs.append(remote_pair)
+            schedule_match = any(teams_match(local_pair, remote_pair) for remote_pair in remote_pairs)
+            check(checks, "ESPN schedule spot check", schedule_match, {
                 "event_id": str(local_event.get("id")),
                 "local_title": title,
-                "local_teams": teams_from_title,
-                "espn_teams": remote_pair,
+                "local_teams": local_pair,
+                "espn_teams": remote_pairs[:5],
+                "espn_sport": espn_sport,
                 "scoreboard_date": event_date,
             }, severity="medium")
         except Exception as exc:

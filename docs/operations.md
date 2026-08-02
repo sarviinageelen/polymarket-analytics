@@ -84,6 +84,13 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 unzip -t reports/generated/nfl_2025_moneyline_picks.xlsx
 ```
 
+## Local web control panel
+
+The repository includes a Kumo-based local dashboard for manual refreshes,
+minute/hour scheduling, validation mode, and guarded GitHub publication. See
+the [control-panel guide](control-panel.md) for startup and service-manager
+notes.
+
 ## What belongs in Git
 
 Commit source code, tests, configuration, Markdown documentation, and small

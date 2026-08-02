@@ -153,6 +153,7 @@ trade, hedge, or sell both outcomes.
 - [Data model and accounting](docs/data-model.md)
 - [Audit findings and caveats](docs/audit.md)
 - [Operations and reproducibility runbook](docs/operations.md)
+- [Local refresh control panel](docs/control-panel.md)
 - [Research notes and GitHub survey](docs/research.md)
 - [Report index](reports/README.md)
 

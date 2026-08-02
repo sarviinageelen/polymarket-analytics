@@ -28,3 +28,10 @@ reports/*.xlsx
 !reports/generated/
 !reports/generated/nfl_2025_moneyline_picks.xlsx
 !reports/generated/wnba_2026_moneyline_picks.xlsx
+
+# Local control-panel runtime state and frontend build output.
+data/control_panel/
+web/node_modules/
+web/dist/
+web/.wrangler/
+web/.next/
