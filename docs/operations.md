@@ -32,6 +32,50 @@ The DuckDB command is API-free. A cache-only test has verified that the base
 collector does not call the network when valid cached metadata and trade files
 are present.
 
+## WNBA refresh runbook
+
+Run metadata discovery before the trade collector. The metadata command is
+cache-first when the request arguments match the saved manifest; use force for
+an intentional refresh. Then rebuild all derived layers from local files.
+
+    .venv-nav/bin/python scripts/fetch_sports_events.py \
+      --series-id 10105 \
+      --output data/raw/wnba_2026_events.json \
+      --season-label 'WNBA 2026' \
+      --start-date 2026-05-08 \
+      --end-date 2026-09-24 \
+      --force
+
+    .venv-nav/bin/python scripts/nav_moneyline_experiment.py \
+      --events data/raw/wnba_2026_events.json \
+      --out-dir data/experiments/nav_wnba_2026_moneyline \
+      --season-label 'WNBA 2026' \
+      --series-id 10105 \
+      --start-date 2026-05-08 \
+      --end-date 2026-09-24 \
+      --workers 8
+
+    .venv-nav/bin/python scripts/build_nav_duckdb.py \
+      --experiment-dir data/experiments/nav_wnba_2026_moneyline \
+      --db data/experiments/nav_wnba_2026_moneyline/silver/wnba_2026_moneyline.duckdb
+
+    .venv-nav/bin/python scripts/analyze_sports_moneyline.py \
+      --experiment-dir data/experiments/nav_wnba_2026_moneyline
+
+    .venv-nav/bin/python scripts/export_sports_moneyline_excel.py \
+      --experiment-dir data/experiments/nav_wnba_2026_moneyline \
+      --output reports/generated/wnba_2026_moneyline_picks.xlsx
+
+    .venv-nav/bin/python scripts/validate_sports_snapshot.py \
+      --experiment-dir data/experiments/nav_wnba_2026_moneyline \
+      --events data/raw/wnba_2026_events.json \
+      --workbook reports/generated/wnba_2026_moneyline_picks.xlsx \
+      --output reports/wnba_2026_validation.json
+
+The current snapshot intentionally excludes six April 30–May 3 Polymarket
+events because the configured scope starts at the official May 8 regular
+season. Change both date arguments if preseason should be analyzed.
+
 ## Validation commands
 
 ```bash

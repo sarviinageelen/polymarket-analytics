@@ -1,0 +1,294 @@
+{
+  "generated_at_utc": "2026-08-02T16:46:16.039914+00:00",
+  "local": {
+    "manifest": {
+      "series_id": 10105,
+      "season": "WNBA 2026",
+      "start_date": "2026-05-08",
+      "end_date": "2026-09-24",
+      "generated_at_utc": "2026-08-02T16:45:26.426357+00:00",
+      "market_count": 262,
+      "trade_count": 816971,
+      "ledger_count": 100982
+    },
+    "market_status_resolution_counts": {
+      "closed:resolved": 220,
+      "open:unresolved": 4,
+      "stale_unresolved:unresolved": 1,
+      "upcoming:unresolved": 37
+    },
+    "ledger_result_counts": {
+      "flat": 228,
+      "loss": 44343,
+      "unsettled": 535,
+      "win": 55876
+    },
+    "event_cache_events": 262,
+    "event_cache_moneyline_markets": 262
+  },
+  "external": {
+    "gamma_scope": {
+      "remote_events": 262,
+      "local_events": 262,
+      "remote_moneyline_markets": 262,
+      "local_moneyline_markets": 262,
+      "missing_local_conditions": 0,
+      "extra_local_conditions": 0
+    }
+  },
+  "onchain": {
+    "samples": [
+      {
+        "transaction_hash": "0x7d5b1c5c23e3f714e0c2e32ee6de9b078beded4988a1160f34629c55849f7ec4",
+        "error": "<HTTPError 401: 'Unauthorized'>"
+      },
+      {
+        "transaction_hash": "0xd85d6723040a010d003ae77947bd42cdb6ad481c3215575a49b07f52c4859f87",
+        "error": "<HTTPError 401: 'Unauthorized'>"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "event cache scope and moneyline filter",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "events": 262,
+        "moneyline_markets": 262,
+        "db_markets": 262,
+        "duplicate_event_ids": 0,
+        "duplicate_condition_ids": 0
+      }
+    },
+    {
+      "name": "manifest versus DuckDB market census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_market_count": 262,
+        "db_market_count": 262,
+        "manifest_failures": 0,
+        "manifest_condition_ids": 262,
+        "db_condition_ids": 262
+      }
+    },
+    {
+      "name": "Parquet versus DuckDB unique trade census",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "manifest_unique_trades": 816971,
+        "parquet_raw_trades": 818551,
+        "parquet_unique_trades": 816971,
+        "duckdb_trades": 816971,
+        "refresh_duplicate_rows": 1580
+      }
+    },
+    {
+      "name": "trade-to-market referential integrity",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "orphan_trade_rows": 0,
+        "ledger_rows": 100982
+      }
+    },
+    {
+      "name": "market shape and price domains",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "duplicate_market_keys": 0,
+        "bad_market_rows": 0
+      }
+    },
+    {
+      "name": "trade domains and required fields",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "invalid_trade_rows": 0,
+        "null_wallet": 0,
+        "null_condition_id": 0,
+        "null_event_id": 0,
+        "null_trade_timestamp": 0
+      }
+    },
+    {
+      "name": "trade timestamps are plausible",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "future_trade_rows": 0,
+        "out_of_window_rows": 0,
+        "capture_time_utc": "2026-08-02T16:46:00.319665+00:00"
+      }
+    },
+    {
+      "name": "replay accounting identities",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 1.1641532182693481e-10,
+        "max_realized_pnl_residual": 0.0,
+        "unresolved_with_settlement_or_realized_pnl": 0,
+        "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "candidate filters match saved CSVs",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "5_game_csv": 343,
+        "5_game_query": 343,
+        "10_game_csv": 211,
+        "10_game_query": 211
+      }
+    },
+    {
+      "name": "manifest market results cover DuckDB",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_results": 262,
+        "db_markets": 262,
+        "missing_in_db": 0
+      }
+    },
+    {
+      "name": "workbook reload and profile hyperlinks",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "sheets": [
+          "Read Me",
+          "Games",
+          "Picks Matrix (10+)",
+          "Picks Matrix (5+)",
+          "Picks Ledger (10+)",
+          "Picks Ledger (5+)",
+          "Open Exposure",
+          "Bettor Summary (10+)",
+          "Bettor Summary (5+)"
+        ],
+        "hyperlinks_to_profiles": 27924,
+        "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
+        "table_counts": {
+          "Read Me": 0,
+          "Games": 1,
+          "Picks Matrix (10+)": 0,
+          "Picks Matrix (5+)": 0,
+          "Picks Ledger (10+)": 1,
+          "Picks Ledger (5+)": 1,
+          "Open Exposure": 1,
+          "Bettor Summary (10+)": 1,
+          "Bettor Summary (5+)": 1
+        },
+        "worksheet_filter_refs": {
+          "Picks Matrix (10+)": "A7:JI218",
+          "Picks Matrix (5+)": "A7:JI350"
+        }
+      }
+    },
+    {
+      "name": "workbook table/filter XML compatibility",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "table_parts": 6,
+        "table_auto_filters": 6,
+        "worksheet_filter_counts": {
+          "xl/worksheets/sheet1.xml": 0,
+          "xl/worksheets/sheet2.xml": 0,
+          "xl/worksheets/sheet3.xml": 1,
+          "xl/worksheets/sheet4.xml": 1,
+          "xl/worksheets/sheet5.xml": 0,
+          "xl/worksheets/sheet6.xml": 0,
+          "xl/worksheets/sheet7.xml": 0,
+          "xl/worksheets/sheet8.xml": 0,
+          "xl/worksheets/sheet9.xml": 0
+        }
+      }
+    },
+    {
+      "name": "Gamma event and moneyline census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "remote_events": 262,
+        "local_events": 262,
+        "remote_moneyline_markets": 262,
+        "local_moneyline_markets": 262,
+        "missing_local_conditions": 0,
+        "extra_local_conditions": 0
+      }
+    },
+    {
+      "name": "Gamma market metadata spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "event_id": "723974",
+        "condition_id": "0x2573dbe9ff7c36753654751e9d9efaae990e75a65f96fd6964ae883765f0cb24",
+        "local_market_closed": false,
+        "remote_market_closed": false,
+        "outcomes_match": true
+      }
+    },
+    {
+      "name": "CLOB status spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "condition_id": "0x2573dbe9ff7c36753654751e9d9efaae990e75a65f96fd6964ae883765f0cb24",
+        "closed": false,
+        "accepting_orders": true,
+        "local_market_closed": false
+      }
+    },
+    {
+      "name": "ESPN schedule spot check",
+      "status": "pass",
+      "severity": "medium",
+      "evidence": {
+        "event_id": "723974",
+        "local_title": "Indiana Fever vs. Minnesota Lynx",
+        "local_teams": [
+          "indianafever",
+          "minnesotalynx"
+        ],
+        "espn_teams": [
+          "minnesotalynx",
+          "indianafever"
+        ],
+        "scoreboard_date": "20260802"
+      }
+    },
+    {
+      "name": "Polygon transaction receipt spot check",
+      "status": "not_run",
+      "severity": "low",
+      "evidence": {
+        "samples": [
+          {
+            "transaction_hash": "0x7d5b1c5c23e3f714e0c2e32ee6de9b078beded4988a1160f34629c55849f7ec4",
+            "error": "<HTTPError 401: 'Unauthorized'>"
+          },
+          {
+            "transaction_hash": "0xd85d6723040a010d003ae77947bd42cdb6ad481c3215575a49b07f52c4859f87",
+            "error": "<HTTPError 401: 'Unauthorized'>"
+          }
+        ],
+        "reason": "The public RPC endpoint rejected the read; this is an access limitation, not evidence of an invalid transaction."
+      }
+    }
+  ],
+  "counts": {
+    "pass": 16,
+    "warning": 0,
+    "fail": 0,
+    "not_run": 1
+  }
+}

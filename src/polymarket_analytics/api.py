@@ -87,27 +87,50 @@ class PolymarketAPI:
     def clob(self, path: str, **params: Any) -> Any:
         return self._request_json(self.config.clob_base, path, params)
 
-    def fetch_season_events(self, series_id: int = 10187) -> list[dict[str, Any]]:
-        """Fetch every event in a Gamma series using keyset pagination."""
+    def fetch_series_events(
+        self,
+        series_id: int | str,
+        *,
+        include_open: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Fetch a Gamma series with stable keyset pagination.
 
-        events: list[dict[str, Any]] = []
-        cursor: str | None = None
-        while True:
-            page = self.gamma(
-                "/events/keyset",
-                series_id=str(series_id),
-                closed="true",
-                limit=100,
-                order="eventDate",
-                ascending="true",
-                after_cursor=cursor,
-            )
-            batch = page.get("events", []) if isinstance(page, dict) else []
-            events.extend(batch)
-            cursor = page.get("next_cursor") if isinstance(page, dict) else None
-            if not cursor:
-                break
-        return events
+        Gamma exposes closed and open events through separate filtered views.
+        Ongoing seasons need both views so upcoming and in-progress games are
+        not silently omitted. Results are deduplicated by event ID.
+        """
+
+        events_by_id: dict[str, dict[str, Any]] = {}
+        closed_filters = (True, False) if include_open else (True,)
+        for closed in closed_filters:
+            cursor: str | None = None
+            while True:
+                page = self.gamma(
+                    "/events/keyset",
+                    series_id=str(series_id),
+                    closed="true" if closed else "false",
+                    limit=100,
+                    order="eventDate",
+                    ascending="true",
+                    after_cursor=cursor,
+                )
+                batch = page.get("events", []) if isinstance(page, dict) else []
+                for event in batch:
+                    event_id = str(event.get("id") or event.get("slug") or "")
+                    if event_id:
+                        events_by_id[event_id] = event
+                cursor = page.get("next_cursor") if isinstance(page, dict) else None
+                if not cursor:
+                    break
+        return sorted(
+            events_by_id.values(),
+            key=lambda event: (str(event.get("eventDate") or ""), str(event.get("id") or "")),
+        )
+
+    def fetch_season_events(self, series_id: int = 10187) -> list[dict[str, Any]]:
+        """Fetch closed events for a historical season."""
+
+        return self.fetch_series_events(series_id, include_open=False)
 
     def fetch_sports_leaderboard(
         self,

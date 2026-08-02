@@ -27,3 +27,4 @@ reports/*.xlsx
 # The reviewed NFL moneyline workbook is explicitly published with the repo.
 !reports/generated/
 !reports/generated/nfl_2025_moneyline_picks.xlsx
+!reports/generated/wnba_2026_moneyline_picks.xlsx

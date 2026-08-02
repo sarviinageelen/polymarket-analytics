@@ -60,6 +60,40 @@ corruption finding. Before publishing a final “complete through closure” cla
 the adapter should be changed to use the intended close boundary and the
 affected markets should be re-fetched into a versioned snapshot.
 
+## WNBA 2026 audit addendum
+
+The ongoing-season extension was independently checked on 2026-08-02 UTC:
+
+| Check | Evidence | Status |
+|---|---:|---|
+| Event cache and moneyline filter | 262 events / 262 moneyline markets; no duplicate event or condition IDs | Pass |
+| Manifest versus DuckDB | 262 markets; 0 collection failures; all condition IDs covered | Pass |
+| Parquet versus DuckDB | 818,551 raw rows; 816,971 exact-key-unique rows at both manifest and DuckDB grain | Pass |
+| Trade-to-market joins | 0 orphan trades | Pass |
+| Domains and required fields | 0 invalid trade rows; 0 required-field nulls; binary market shape | Pass |
+| Time bounds | 0 future or out-of-window trades | Pass |
+| Replay accounting | Maximum cash-flow residual about 2.9e-11; no unresolved settlement/P&L values | Pass |
+| Candidate filters | 5+ CSV/query: 343; 10+ CSV/query: 211 | Pass |
+| Excel compatibility | Workbook reloads; 27,924 profile links; 6 table filters and no duplicate table/worksheet filters | Pass |
+| External metadata | Gamma census, Gamma spot, CLOB spot, and ESPN schedule spot | Pass |
+| Polygon receipt probe | Public RPC returned HTTP 401 | Not run |
+
+The local WNBA market status census is 220 closed/resolved, 4 open,
+1 stale_unresolved, and 37 upcoming. The stale row is Atlanta Dream vs.
+Minnesota Lynx, event 436142: the event is closed but the market is
+inactive/archived and unresolved. It remains outside realized ranking.
+
+The raw Parquet duplicate rows are caused by refreshing unresolved markets and
+appending another capture of already-seen history. The silver build removes
+exact duplicate source rows before replay. This is safe for the current
+analysis, but a future compaction step should replace repeated open-market
+shards rather than accumulating them.
+
+The complete machine-readable evidence is in
+reports/wnba_2026_validation.json. It is intentionally saved next to the
+reviewable WNBA report so future refreshes can be compared using the same
+checks.
+
 ## Known schema limitations
 
 - The public trade rows do not identify maker versus taker per row.

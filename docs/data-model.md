@@ -44,6 +44,25 @@ Most markets resolve as `[1, 0]` or `[0, 1]`. One captured Packers–Cowboys
 market resolves as `[0.5, 0.5]`; it is stored as `resolution_type = 'tie'` and
 excluded from strict one-winner calculations when appropriate.
 
+## Ongoing-market fields
+
+For an ongoing season, market status and resolution are separate concepts:
+
+| Field | Meaning |
+|---|---|
+| market_status | closed, live, open, upcoming, or stale_unresolved |
+| resolution_type | resolved, tie, or unresolved |
+| current_price_a/b | Latest cached Gamma prices used for mark-to-market |
+| final_price_a/b | Populated only for resolved or tie markets |
+| settlement_value | Populated only for resolved or tie wallet-game ledgers |
+| realized_pnl | Populated only for resolved or tie wallet-game ledgers |
+| mark_to_market_pnl | Current cash flow plus current position value |
+
+Never turn a current price of 1.0 into a final result unless the market is
+also marked closed and the resulting resolution passes the database rules.
+This protects the ranking from premature settlement and canceled-market
+artifacts.
+
 ## Filtering bettors
 
 Filters should be applied to `wallet_game_ledger`, not individual trade rows.
