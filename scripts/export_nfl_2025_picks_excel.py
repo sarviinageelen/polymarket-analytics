@@ -18,6 +18,7 @@ import csv
 import json
 import sys
 from collections import defaultdict
+from copy import copy
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,20 @@ DARK = "1F1F1F"
 THIN_GRAY = Side(style="thin", color="B7B7B7")
 MEDIUM_NAVY = Side(style="medium", color=NAVY)
 BORDER = Border(left=THIN_GRAY, right=THIN_GRAY, top=THIN_GRAY, bottom=THIN_GRAY)
+PROFILE_BASE_URL = "https://polymarket.com/profile/"
+
+
+def add_profile_hyperlink(cell: Any, wallet: str) -> None:
+    """Make a bettor label or wallet cell open that wallet's Polymarket profile."""
+
+    wallet = str(wallet or "").lower()
+    if not wallet:
+        return
+    cell.hyperlink = f"{PROFILE_BASE_URL}{wallet}"
+    font = copy(cell.font)
+    font.color = "0563C1"
+    font.underline = "single"
+    cell.font = font
 
 
 def parse_jsonish(value: Any, default: Any = None) -> Any:
@@ -437,6 +452,8 @@ def write_summary_sheet(wb: Workbook, name: str, candidates: list[dict[str, Any]
             cell = ws.cell(row_number, column, value)
             cell.border = BORDER
             cell.alignment = Alignment(vertical="top", wrap_text=column in {1, 2, 3})
+            if column in {1, 2}:
+                add_profile_hyperlink(cell, row["wallet"])
             if column in {8, 11, 15}:
                 cell.number_format = "0.00%"
             if column in {9, 10, 16}:
@@ -462,6 +479,8 @@ def write_ledger_sheet(wb: Workbook, name: str, rows: list[dict[str, Any]], filt
             cell = ws.cell(row_number, column, value)
             cell.border = BORDER
             cell.alignment = Alignment(vertical="top", wrap_text=header in {"Matchup", "Primary Pick", "Net Position", "Pick Basis"})
+            if header in {"Bettor", "Wallet"}:
+                add_profile_hyperlink(cell, row["Wallet"])
             if header == "Date" and value:
                 cell.number_format = "yyyy-mm-dd"
             elif header in {"Bettor Win %"}:
@@ -545,6 +564,8 @@ def write_matrix_sheet(
             cell = ws.cell(row_number, column, value)
             cell.border = BORDER
             cell.alignment = Alignment(vertical="top", wrap_text=column == 1)
+            if column == 1:
+                add_profile_hyperlink(cell, wallet)
             if column == 4:
                 cell.number_format = "0.00%"
             if column == 5:
@@ -609,6 +630,7 @@ def write_readme(wb: Workbook, games: list[dict[str, Any]], counts: dict[str, in
         ("Tie handling", "A resolved 0.5/0.5 moneyline, such as Packers–Cowboys, is labelled Tie rather than treated as a missing winner."),
         ("Blank matrix cell", "The selected bettor had no moneyline ledger for that game."),
         ("Audit trail", "Picks Ledger sheets retain condition IDs, wallet addresses, BUY/SELL totals, final positions, settlement, and ledger P&L."),
+        ("Profiles", "Bettor and Wallet cells link to the corresponding Polymarket profile."),
         ("Generated", "2026-08-02 UTC"),
     ]
     for row_number, (key, value) in enumerate(rows, start=3):
