@@ -1,26 +1,27 @@
 {
-  "generated_at_utc": "2026-08-02T16:46:16.039914+00:00",
+  "generated_at_utc": "2026-08-02T17:05:31.232294+00:00",
   "local": {
     "manifest": {
       "series_id": 10105,
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-02T16:45:26.426357+00:00",
+      "generated_at_utc": "2026-08-02T17:04:31.405311+00:00",
       "market_count": 262,
-      "trade_count": 816971,
-      "ledger_count": 100982
+      "trade_count": 817084,
+      "ledger_count": 101025
     },
     "market_status_resolution_counts": {
       "closed:resolved": 220,
-      "open:unresolved": 4,
+      "live:unresolved": 1,
+      "open:unresolved": 3,
       "stale_unresolved:unresolved": 1,
       "upcoming:unresolved": 37
     },
     "ledger_result_counts": {
       "flat": 228,
       "loss": 44343,
-      "unsettled": 535,
+      "unsettled": 578,
       "win": 55876
     },
     "event_cache_events": 262,
@@ -39,11 +40,11 @@
   "onchain": {
     "samples": [
       {
-        "transaction_hash": "0x7d5b1c5c23e3f714e0c2e32ee6de9b078beded4988a1160f34629c55849f7ec4",
+        "transaction_hash": "0x0c8e97efcd3db66b2e55a76b91bf31ec65ff789a02478399a1eefceddcc8ce1f",
         "error": "<HTTPError 401: 'Unauthorized'>"
       },
       {
-        "transaction_hash": "0xd85d6723040a010d003ae77947bd42cdb6ad481c3215575a49b07f52c4859f87",
+        "transaction_hash": "0xc27eadb392ec8df1fafde677627b45e0d323bc6d8d6364732964c9a20b1a8a84",
         "error": "<HTTPError 401: 'Unauthorized'>"
       }
     ]
@@ -78,11 +79,11 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_unique_trades": 816971,
-        "parquet_raw_trades": 818551,
-        "parquet_unique_trades": 816971,
-        "duckdb_trades": 816971,
-        "refresh_duplicate_rows": 1580
+        "manifest_unique_trades": 817084,
+        "parquet_raw_trades": 820258,
+        "parquet_unique_trades": 817084,
+        "duckdb_trades": 817084,
+        "refresh_duplicate_rows": 3174
       }
     },
     {
@@ -91,7 +92,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 100982
+        "ledger_rows": 101025
       }
     },
     {
@@ -122,7 +123,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-02T16:46:00.319665+00:00"
+        "capture_time_utc": "2026-08-02T17:05:19.088206+00:00"
       }
     },
     {
@@ -130,7 +131,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 1.1641532182693481e-10,
+        "max_cash_flow_residual": 1.7462298274040222e-10,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
@@ -173,7 +174,7 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 27924,
+        "hyperlinks_to_profiles": 27948,
         "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
         "table_counts": {
           "Read Me": 0,
@@ -273,11 +274,11 @@
       "evidence": {
         "samples": [
           {
-            "transaction_hash": "0x7d5b1c5c23e3f714e0c2e32ee6de9b078beded4988a1160f34629c55849f7ec4",
+            "transaction_hash": "0x0c8e97efcd3db66b2e55a76b91bf31ec65ff789a02478399a1eefceddcc8ce1f",
             "error": "<HTTPError 401: 'Unauthorized'>"
           },
           {
-            "transaction_hash": "0xd85d6723040a010d003ae77947bd42cdb6ad481c3215575a49b07f52c4859f87",
+            "transaction_hash": "0xc27eadb392ec8df1fafde677627b45e0d323bc6d8d6364732964c9a20b1a8a84",
             "error": "<HTTPError 401: 'Unauthorized'>"
           }
         ],

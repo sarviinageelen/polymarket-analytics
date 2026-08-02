@@ -19,8 +19,8 @@ The current local experiment contains:
 - 332,084 wallet/game ledgers; and
 - a persistent local DuckDB database.
 
-The WNBA 2026 regular-season snapshot contains 262 moneyline markets, 816,971
-unique trades, 18,111 wallets, and 100,982 wallet/game ledgers. It includes
+The WNBA 2026 regular-season snapshot contains 262 moneyline markets, 817,084
+unique trades, 18,115 wallets, and 101,025 wallet/game ledgers. It includes
 closed, live/open, stale/unresolved, and upcoming markets. See the
 [WNBA analysis report](reports/wnba_2026_moneyline.md) and the
 [validation evidence](reports/wnba_2026_validation.json).

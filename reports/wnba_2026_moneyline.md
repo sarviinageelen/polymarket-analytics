@@ -3,7 +3,7 @@
 ## Executive Summary
 
 - **The WNBA pipeline is running locally and is refreshable.** The snapshot contains 262 full-game moneyline markets in the regular-season window from May 8 through September 24, 2026. At capture time, 220 markets were resolved and 42 remained unresolved.
-- **The data layers reconcile.** The cache contains 816,971 unique trades, 18,111 wallets, and 100,982 wallet-game ledgers. Manifest, Parquet, DuckDB, CSV filters, and the Excel workbook agree on the key counts.
+- **The data layers reconcile.** The refreshed cache contains 817,084 unique trades, 18,115 wallets, and 101,025 wallet-game ledgers. Manifest, Parquet, DuckDB, CSV filters, and the Excel workbook agree on the key counts.
 - **The bettor filters are intentionally conservative.** The 5+ view contains 343 public wallet identifiers and the 10+ view contains 211, each requiring at least 70% settled non-flat win rate and at least $1,000 of settled BUY cost.
 - **Live and upcoming games are visible but not scored as wins or losses.** Their current positions are shown as mark-to-market exposure only. This prevents an in-progress price from being mistaken for a final result.
 
@@ -17,13 +17,14 @@ The API currently lists the captured games only through August 15. That is expec
 |---|---:|
 | Moneyline markets | 262 |
 | Resolved markets | 220 |
-| Open markets | 4 |
+| Live markets | 1 |
+| Open markets | 3 |
 | Stale/unresolved markets | 1 |
 | Upcoming markets | 37 |
-| Unique trades | 816,971 |
-| Wallets with trades | 18,111 |
-| Wallet-game ledgers | 100,982 |
-| Unsettled wallet-game ledgers | 535 |
+| Unique trades | 817,084 |
+| Wallets with trades | 18,115 |
+| Wallet-game ledgers | 101,025 |
+| Unsettled wallet-game ledgers | 578 |
 
 ## What the bettor filters mean
 
@@ -47,7 +48,7 @@ The reproducible validator ran 17 checks:
 
 - 16 passed across cache scope, market filtering, manifest/Parquet/DuckDB counts, referential integrity, domains, timestamps, replay accounting, candidate filters, workbook reload, Excel table XML, Gamma, CLOB, and ESPN spot checks.
 - 1 check was not run to completion: the Polygon receipt probe received HTTP 401 from the public RPC endpoint. This is an access limitation, not evidence that the sampled transactions are invalid.
-- Raw Parquet contains 818,551 rows versus 816,971 exact-key-deduplicated rows because refreshing unresolved markets appends a small amount of repeated history. DuckDB deduplicates those exact source rows before replay; the mismatch is recorded rather than hidden.
+- Raw Parquet contains 820,258 rows versus 817,084 exact-key-deduplicated rows because refreshing unresolved markets appends repeated history. DuckDB deduplicates those exact source rows before replay; the mismatch is recorded rather than hidden.
 
 See the saved [validation evidence](wnba_2026_validation.json) and rerun it with:
 
