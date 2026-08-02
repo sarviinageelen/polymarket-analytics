@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv-nav/
+external/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# Local editor and operating-system files.
+.DS_Store
+.vscode/
+.idea/
+
+# API snapshots can be large and should be regenerated when needed.
+data/raw/
+data/derived/
+data/experiments/
+results/
+*.duckdb
+
+# Generated reports stay local; commit the Markdown methodology/report notes.
+reports/generated/
+reports/*.xlsx
