@@ -885,6 +885,12 @@ class ControlPanel:
             raise ValueError(f"unsupported sport: {sport}")
         return analytics_module().game_trends(analytics_db_path(sport), condition_id)
 
+    def analytics_odds_performance(self, sport: str, **params: Any) -> dict[str, Any]:
+        if sport not in SPORTS:
+            raise ValueError(f"unsupported sport: {sport}")
+        events_path = ROOT / str(SPORTS[sport]["events"])
+        return analytics_module().odds_performance(analytics_db_path(sport), events_path, **params)
+
     def status(self) -> dict[str, Any]:
         with self.lock:
             config = dict(self.config)
@@ -1077,6 +1083,17 @@ class RequestHandler(BaseHTTPRequestHandler):
                 if not condition_id:
                     raise ValueError("condition_id is required")
                 self._send_json(self.controller.analytics_game_trends(sport, condition_id))
+                return
+            if parsed.path == "/api/analytics/odds-performance":
+                result = self.controller.analytics_odds_performance(
+                    sport,
+                    team=self._query_value(query, "team") or None,
+                    role=str(self._query_value(query, "role", "all")),
+                )
+                if self._query_bool(query, "export"):
+                    self._send_csv(result.get("team_rows", []), f"{sport}_odds_performance.csv")
+                else:
+                    self._send_json(result)
                 return
         self._serve_static(parsed.path)
 

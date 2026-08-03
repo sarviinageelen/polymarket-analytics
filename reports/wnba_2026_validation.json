@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-03T14:10:27.310482+00:00",
+  "generated_at_utc": "2026-08-03T14:40:47.374119+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
@@ -152,7 +152,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-03T14:10:11.105096+00:00"
+        "capture_time_utc": "2026-08-03T14:40:24.908630+00:00"
       }
     },
     {
@@ -194,6 +194,7 @@
       "evidence": {
         "sheets": [
           "Read Me",
+          "Odds vs Results",
           "Games",
           "Picks Matrix (10+)",
           "Picks Matrix (5+)",
@@ -207,6 +208,7 @@
         "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
         "table_counts": {
           "Read Me": 0,
+          "Odds vs Results": 2,
           "Games": 1,
           "Picks Matrix (10+)": 0,
           "Picks Matrix (5+)": 0,
@@ -227,14 +229,15 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "table_parts": 6,
-        "table_auto_filters": 6,
+        "table_parts": 8,
+        "table_auto_filters": 8,
         "worksheet_filter_counts": {
           "xl/worksheets/sheet1.xml": 0,
+          "xl/worksheets/sheet10.xml": 0,
           "xl/worksheets/sheet2.xml": 0,
-          "xl/worksheets/sheet3.xml": 1,
+          "xl/worksheets/sheet3.xml": 0,
           "xl/worksheets/sheet4.xml": 1,
-          "xl/worksheets/sheet5.xml": 0,
+          "xl/worksheets/sheet5.xml": 1,
           "xl/worksheets/sheet6.xml": 0,
           "xl/worksheets/sheet7.xml": 0,
           "xl/worksheets/sheet8.xml": 0,

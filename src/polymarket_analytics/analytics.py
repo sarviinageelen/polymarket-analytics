@@ -10,8 +10,9 @@ snapshot.
 
 from __future__ import annotations
 
+import json
 import math
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -732,6 +733,396 @@ def game_trends(db_path: Path, condition_id: str) -> dict[str, Any]:
             "tracked_wallets": len(positions),
             "timeline": timeline,
             "methodology": "Selections are net positions at the snapshot timestamp. A wallet with positive exposure to both outcomes is labelled Hedged. Percentages must be read with the displayed wallet sample size.",
+        }
+    finally:
+        conn.close()
+
+
+def _normalise_team(value: Any) -> str:
+    """Create a forgiving comparison key for full names and market aliases."""
+
+    return " ".join(str(value or "").lower().replace(".", "").split())
+
+
+def _same_team(left: Any, right: Any) -> bool:
+    left_key = _normalise_team(left)
+    right_key = _normalise_team(right)
+    if not left_key or not right_key:
+        return False
+    return left_key == right_key or left_key.endswith(f" {right_key}") or right_key.endswith(f" {left_key}")
+
+
+def _jsonish(value: Any, default: Any = None) -> Any:
+    if isinstance(value, (list, dict, int, float, bool)):
+        return value
+    if value is None:
+        return default
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return default
+
+
+def _parse_utc_timestamp(value: Any) -> int | None:
+    """Parse Gamma's ISO or SQL-like timestamp into a UTC epoch."""
+
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip().replace(" ", "T", 1)
+    if text.endswith("+00"):
+        text = f"{text}:00"
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return int(parsed.timestamp())
+
+
+def _event_metadata(events_path: Path | None) -> dict[str, dict[str, Any]]:
+    """Read the locally cached event snapshot used by the ETL.
+
+    The event API stores kickoff and venue ordering beside the market. Keeping
+    this enrichment local means the dashboard never needs to call a third-party
+    service at page-load time.
+    """
+
+    if not events_path or not events_path.exists():
+        return {}
+    try:
+        payload = json.loads(events_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    events = payload.get("events", []) if isinstance(payload, dict) else payload
+    if not isinstance(events, list):
+        return {}
+
+    metadata: dict[str, dict[str, Any]] = {}
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        event_teams = event.get("teams") if isinstance(event.get("teams"), list) else []
+        team_roles: dict[str, str] = {}
+        for team in event_teams:
+            if not isinstance(team, dict):
+                continue
+            role = str(team.get("ordering") or "").lower()
+            if role not in {"home", "away"}:
+                continue
+            for key in (team.get("name"), team.get("alias"), team.get("abbreviation")):
+                if key:
+                    team_roles[_normalise_team(key)] = role
+
+        for market in event.get("markets") or []:
+            if not isinstance(market, dict):
+                continue
+            condition_id = str(market.get("conditionId") or "")
+            if not condition_id:
+                continue
+            outcomes = [str(item) for item in (_jsonish(market.get("outcomes"), []) or [])]
+            roles: dict[str, str] = {}
+            for outcome in outcomes:
+                role = team_roles.get(_normalise_team(outcome))
+                if not role:
+                    for key, candidate in team_roles.items():
+                        if _same_team(outcome, key):
+                            role = candidate
+                            break
+                if role:
+                    roles[outcome] = role
+            metadata[condition_id] = {
+                "game_start_ts": _parse_utc_timestamp(
+                    market.get("gameStartTime") or event.get("startTime") or event.get("eventDate")
+                ),
+                "team_roles": roles,
+                "event_id": str(event.get("id") or ""),
+            }
+    return metadata
+
+
+def _venue_role(team: str, event_meta: dict[str, Any]) -> str | None:
+    roles = event_meta.get("team_roles") or {}
+    for name, role in roles.items():
+        if _same_team(team, name):
+            return role
+    return None
+
+
+def _rate_fields(wins: int, losses: int) -> dict[str, Any]:
+    games = wins + losses
+    return {
+        "games": games,
+        "wins": wins,
+        "losses": losses,
+        "win_rate_pct": round(wins / games * 100, 2) if games else None,
+    }
+
+
+def _team_segment() -> dict[str, int]:
+    return {"games": 0, "wins": 0, "losses": 0}
+
+
+def _add_team_segment(item: dict[str, Any], segment: str, won: bool) -> None:
+    bucket = item.setdefault(segment, _team_segment())
+    bucket["games"] += 1
+    bucket["wins"] += int(won)
+    bucket["losses"] += int(not won)
+
+
+def _finish_team_segment(item: dict[str, Any], segment: str) -> None:
+    bucket = item.setdefault(segment, _team_segment())
+    bucket.update(_rate_fields(bucket["wins"], bucket["losses"]))
+
+
+def _favorite_band(price: float) -> tuple[str, float, float] | None:
+    bands = [
+        (0.50, 0.55, "50–55%"),
+        (0.55, 0.60, "55–60%"),
+        (0.60, 0.65, "60–65%"),
+        (0.65, 0.70, "65–70%"),
+        (0.70, 0.80, "70–80%"),
+        (0.80, 1.01, "80%+") ,
+    ]
+    for lower, upper, label in bands:
+        if lower <= price < upper:
+            return label, lower, upper
+    return None
+
+
+def odds_performance(
+    db_path: Path,
+    events_path: Path | None = None,
+    *,
+    team: str | None = None,
+    role: str = "all",
+) -> dict[str, Any]:
+    """Compare cached pre-match market prices with resolved game outcomes.
+
+    A pre-match price is the last observed trade price for each outcome at or
+    before the cached kickoff timestamp. This is intentionally described as a
+    market-price proxy, not a sportsbook closing line. Home/away is mapped from
+    the cached Gamma event team's explicit ``ordering`` field.
+    """
+
+    role = str(role or "all").lower()
+    valid_roles = {"all", "favorite", "underdog", "home", "away"}
+    if role not in valid_roles:
+        raise ValueError(f"role must be one of: {', '.join(sorted(valid_roles))}")
+    event_metadata = _event_metadata(events_path)
+    conn = _open(db_path)
+    try:
+        market_rows = _rows(
+            conn.execute(
+                """
+                SELECT condition_id, event_date, title, team_a, team_b, winner,
+                       resolution_type
+                FROM market_dim
+                WHERE LOWER(COALESCE(market_type, 'moneyline')) = 'moneyline'
+                ORDER BY CAST(event_date AS DATE), condition_id
+                """
+            )
+        )
+        cutoffs = [
+            (row["condition_id"], int(event_metadata[row["condition_id"]]["game_start_ts"]))
+            for row in market_rows
+            if row["condition_id"] in event_metadata and event_metadata[row["condition_id"]].get("game_start_ts")
+        ]
+        prices: dict[tuple[str, int], float] = {}
+        if cutoffs:
+            conn.execute("CREATE TEMP TABLE odds_cutoffs(condition_id VARCHAR, game_start_ts BIGINT)")
+            conn.executemany("INSERT INTO odds_cutoffs VALUES (?, ?)", cutoffs)
+            price_rows = conn.execute(
+                """
+                SELECT condition_id, outcome_index, price
+                FROM (
+                    SELECT t.condition_id, t.outcome_index, t.price,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY t.condition_id, t.outcome_index
+                               ORDER BY t.trade_timestamp DESC, t.transaction_hash DESC
+                           ) AS row_number
+                    FROM trade_fact t
+                    JOIN odds_cutoffs c USING (condition_id)
+                    WHERE t.trade_timestamp <= c.game_start_ts
+                      AND t.price BETWEEN 0 AND 1
+                ) latest
+                WHERE row_number = 1
+                """
+            ).fetchall()
+            prices = {(str(condition_id), int(outcome_index)): float(price) for condition_id, outcome_index, price in price_rows}
+
+        games: list[dict[str, Any]] = []
+        for market in market_rows:
+            condition_id = str(market["condition_id"])
+            resolution = str(market.get("resolution_type") or "unresolved").lower()
+            if resolution not in {"resolved", "tie"}:
+                continue
+            metadata = event_metadata.get(condition_id, {})
+            price_a = prices.get((condition_id, 0))
+            price_b = prices.get((condition_id, 1))
+            team_a = str(market.get("team_a") or "Team A")
+            team_b = str(market.get("team_b") or "Team B")
+            home_team = next((team for team in (team_a, team_b) if _venue_role(team, metadata) == "home"), None)
+            away_team = next((team for team in (team_a, team_b) if _venue_role(team, metadata) == "away"), None)
+            has_prices = price_a is not None and price_b is not None and abs(price_a - price_b) > 1e-9
+            favorite_index = 0 if has_prices and price_a > price_b else 1 if has_prices else None
+            favorite_team = (team_a, team_b)[favorite_index] if favorite_index is not None else None
+            underdog_team = (team_b, team_a)[favorite_index] if favorite_index is not None else None
+            favorite_price = (price_a, price_b)[favorite_index] if favorite_index is not None else None
+            underdog_price = (price_b, price_a)[favorite_index] if favorite_index is not None else None
+            winner = str(market.get("winner") or "")
+            favorite_result = "tie" if resolution == "tie" else (
+                "win" if favorite_team and _same_team(winner, favorite_team) else "loss" if favorite_team else None
+            )
+            games.append({
+                "condition_id": condition_id,
+                "event_date": market.get("event_date"),
+                "title": market.get("title") or f"{team_a} vs {team_b}",
+                "team_a": team_a,
+                "team_b": team_b,
+                "winner": winner or None,
+                "resolution": resolution,
+                "game_start_utc": datetime.fromtimestamp(metadata["game_start_ts"], tz=timezone.utc).isoformat() if metadata.get("game_start_ts") else None,
+                "pre_match_price_a": price_a,
+                "pre_match_price_b": price_b,
+                "favorite_team": favorite_team,
+                "favorite_price": favorite_price,
+                "favorite_implied_pct": round(favorite_price * 100, 2) if favorite_price is not None else None,
+                "underdog_team": underdog_team,
+                "underdog_price": underdog_price,
+                "favorite_result": favorite_result,
+                "home_team": home_team,
+                "away_team": away_team,
+                "home_away_status": "available" if home_team and away_team else "unavailable",
+            })
+
+        base_games = [game for game in games if game["favorite_team"]]
+        selected_games = base_games
+        if team:
+            selected_games = [game for game in selected_games if team in {game["team_a"], game["team_b"]}]
+        if role == "favorite":
+            selected_games = [game for game in selected_games if game["favorite_team"] and (not team or _same_team(team, game["favorite_team"]))]
+        elif role == "underdog":
+            selected_games = [game for game in selected_games if game["underdog_team"] and (not team or _same_team(team, game["underdog_team"]))]
+        elif role == "home":
+            selected_games = [game for game in selected_games if game["home_team"] and (not team or _same_team(team, game["home_team"]))]
+        elif role == "away":
+            selected_games = [game for game in selected_games if game["away_team"] and (not team or _same_team(team, game["away_team"]))]
+
+        selected_ids = {game["condition_id"] for game in selected_games}
+        team_rows: list[dict[str, Any]] = []
+        for game in selected_games:
+            if game["resolution"] == "tie":
+                continue
+            for selected_team, index in ((game["team_a"], 0), (game["team_b"], 1)):
+                if team and not _same_team(selected_team, team):
+                    continue
+                venue = "home" if game["home_team"] and _same_team(selected_team, game["home_team"]) else "away" if game["away_team"] and _same_team(selected_team, game["away_team"]) else None
+                team_role = "favorite" if _same_team(selected_team, game["favorite_team"]) else "underdog"
+                if role not in {"all", "favorite", "underdog"} and venue != role:
+                    continue
+                won = _same_team(game["winner"], selected_team)
+                team_rows.append({
+                    "condition_id": game["condition_id"],
+                    "event_date": game["event_date"],
+                    "title": game["title"],
+                    "team": selected_team,
+                    "opponent": game["team_b"] if index == 0 else game["team_a"],
+                    "won": won,
+                    "result": "win" if won else "loss",
+                    "role": team_role,
+                    "venue": venue or "unknown",
+                    "implied_pct": round(float((game["pre_match_price_a"], game["pre_match_price_b"])[index]) * 100, 2),
+                    "favorite_price_pct": game["favorite_implied_pct"],
+                })
+
+        grouped: dict[str, dict[str, Any]] = {}
+        for row in team_rows:
+            item = grouped.setdefault(row["team"], {
+                "team": row["team"], "games": 0, "wins": 0, "losses": 0,
+                "implied_sum": 0.0, "favorite": _team_segment(), "underdog": _team_segment(),
+                "home": _team_segment(), "away": _team_segment(),
+            })
+            item["games"] += 1
+            item["wins"] += int(row["won"])
+            item["losses"] += int(not row["won"])
+            item["implied_sum"] += float(row["implied_pct"])
+            _add_team_segment(item, row["role"], row["won"])
+            if row["venue"] in {"home", "away"}:
+                _add_team_segment(item, row["venue"], row["won"])
+        team_summary = []
+        for item in grouped.values():
+            item.update(_rate_fields(item["wins"], item["losses"]))
+            item["avg_implied_pct"] = round(item["implied_sum"] / item["games"], 2) if item["games"] else None
+            item["calibration_delta_pct"] = round(item["win_rate_pct"] - item["avg_implied_pct"], 2) if item["win_rate_pct"] is not None and item["avg_implied_pct"] is not None else None
+            for segment in ("favorite", "underdog", "home", "away"):
+                _finish_team_segment(item, segment)
+            item.pop("implied_sum", None)
+            team_summary.append(item)
+        team_summary.sort(key=lambda item: (-int(item["games"]), -float(item["win_rate_pct"] or 0), item["team"]))
+
+        band_groups: dict[str, dict[str, Any]] = {}
+        for game in selected_games:
+            if game["favorite_result"] not in {"win", "loss"}:
+                continue
+            band = _favorite_band(float(game["favorite_price"]))
+            if not band:
+                continue
+            label, _, _ = band
+            item = band_groups.setdefault(label, {"band": label, "games": 0, "wins": 0, "losses": 0, "implied_sum": 0.0})
+            item["games"] += 1
+            item["wins"] += int(game["favorite_result"] == "win")
+            item["losses"] += int(game["favorite_result"] == "loss")
+            item["implied_sum"] += float(game["favorite_implied_pct"])
+        band_order = ["50–55%", "55–60%", "60–65%", "65–70%", "70–80%", "80%+"]
+        bands = []
+        for label in band_order:
+            item = band_groups.get(label, {"band": label, "games": 0, "wins": 0, "losses": 0, "implied_sum": 0.0})
+            item.update(_rate_fields(item["wins"], item["losses"]))
+            item["avg_implied_pct"] = round(item["implied_sum"] / item["games"], 2) if item["games"] else None
+            item["calibration_delta_pct"] = round(item["win_rate_pct"] - item["avg_implied_pct"], 2) if item["win_rate_pct"] is not None and item["avg_implied_pct"] is not None else None
+            item.pop("implied_sum", None)
+            bands.append(item)
+
+        selected_with_results = [game for game in selected_games if game["favorite_result"] in {"win", "loss"}]
+        favorite_wins = sum(game["favorite_result"] == "win" for game in selected_with_results)
+        home_away_games = sum(bool(game["home_team"] and game["away_team"]) for game in selected_games)
+        total_games = len(selected_with_results)
+        favorite_rate = round(favorite_wins / total_games * 100, 2) if total_games else None
+        avg_favorite_price = round(sum(float(game["favorite_implied_pct"]) for game in selected_with_results) / total_games, 2) if total_games else None
+        return {
+            "filters": {"team": team, "role": role},
+            "summary": {
+                "markets_total": len(market_rows),
+                "resolved_markets": sum(str(row.get("resolution_type") or "").lower() in {"resolved", "tie"} for row in market_rows),
+                "tie_markets": sum(game["resolution"] == "tie" for game in games),
+                "games_with_game_start": sum(bool(event_metadata.get(str(row["condition_id"]), {}).get("game_start_ts")) for row in market_rows),
+                "games_with_prematch_prices": len(base_games),
+                "games_missing_prematch_prices": max(0, sum(str(row.get("resolution_type") or "").lower() in {"resolved", "tie"} for row in market_rows) - len(base_games)),
+                "selected_games": total_games,
+                "favorite_games": total_games,
+                "favorite_wins": favorite_wins,
+                "favorite_losses": total_games - favorite_wins,
+                "favorite_win_rate_pct": favorite_rate,
+                "avg_favorite_implied_pct": avg_favorite_price,
+                "home_away_games": home_away_games,
+                "home_away_coverage_pct": round(home_away_games / len(selected_games) * 100, 2) if selected_games else None,
+            },
+            "team_rows": team_summary,
+            "bands": bands,
+            "games": [game for game in games if game["condition_id"] in selected_ids],
+            "methodology": {
+                "pre_match_price": "Latest recorded trade price for each outcome at or before the cached kickoff timestamp, read from the local DuckDB trade_fact table.",
+                "favorite": "The outcome with the higher pre-match market-price proxy. Equal or missing prices are excluded from favorite-rate calculations.",
+                "home_away": "Home/away is mapped from the cached Gamma event team's explicit ordering field. Unknown venue rows are not assigned to either side.",
+                "calibration": "Calibration delta is actual win rate minus average implied price, shown descriptively; it is not a guaranteed trading edge or sportsbook line comparison.",
+            },
         }
     finally:
         conn.close()

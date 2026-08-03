@@ -1,24 +1,24 @@
 :root {
   color-scheme: light;
-  --ink: #1f232b;
-  --ink-soft: #394150;
-  --muted: #5f6978;
-  --quiet: #707b8b;
-  --line: #dfe4ea;
-  --line-strong: #c8d0da;
-  --page: #f5f7f9;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --muted: #64748b;
+  --quiet: #94a3b8;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --page: #f8fafc;
   --panel: #ffffff;
-  --orange: #f6821f;
-  --orange-dark: #a94e06;
-  --orange-soft: #fff2e6;
-  --green: #18794e;
-  --green-soft: #eaf7f0;
-  --blue: #1f5fbf;
-  --blue-soft: #edf4ff;
-  --violet: #684ba9;
-  --violet-soft: #f2effd;
-  --red: #b52e3a;
-  --red-soft: #fff0f0;
+  --orange: #0f172a;
+  --orange-dark: #0f172a;
+  --orange-soft: #f1f5f9;
+  --green: #15803d;
+  --green-soft: #f0fdf4;
+  --blue: #2563eb;
+  --blue-soft: #eff6ff;
+  --violet: #4f46e5;
+  --violet-soft: #eef2ff;
+  --red: #b42318;
+  --red-soft: #fef2f2;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--page);
   color: var(--ink);
@@ -29,7 +29,7 @@ body { margin: 0; min-width: 320px; background: var(--page); color: var(--ink); 
 button, input, select { font: inherit; }
 button { color: inherit; }
 a { color: inherit; }
-button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid rgba(246, 130, 31, .38); outline-offset: 2px; }
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid rgba(15, 23, 42, .22); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .app-shell { min-height: 100vh; }
@@ -66,11 +66,11 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 
 .alert { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; padding: 13px 15px; border-radius: 9px; font-size: 14px; }
 .alert-content { min-width: 0; flex: 1; line-height: 1.45; }
-.alert-error { color: var(--red); background: var(--red-soft); box-shadow: 0 0 0 1px #ffd4d5; }
-.alert-success { color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 1px #ccebd9; }
+.alert-error { color: var(--red); background: var(--red-soft); box-shadow: 0 0 0 1px #fecaca; }
+.alert-success { color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 1px #bbf7d0; }
 .alert-dismiss { margin-left: auto; }
 
-.dataset-bar { display: flex; align-items: center; gap: 16px; min-height: 72px; margin-bottom: 16px; padding: 14px 17px; border-radius: 12px; background: #fffaf5; box-shadow: 0 0 0 1px #f0d5bb; }
+.dataset-bar { display: flex; align-items: center; gap: 16px; min-height: 72px; margin-bottom: 16px; padding: 14px 17px; border-radius: 12px; background: #f8fafc; box-shadow: 0 0 0 1px var(--line); }
 .dataset-bar-title { display: flex; align-items: center; gap: 10px; min-width: 220px; }
 .dataset-bar-title small, .dataset-bar-title strong, .dataset-meta small, .dataset-meta strong { display: block; }
 .dataset-bar-title small, .dataset-meta small { margin-bottom: 2px; color: var(--muted); font-size: 12px; }
@@ -112,7 +112,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .mode-option { display: flex; align-items: flex-start; gap: 10px; min-width: 0; min-height: 108px; padding: 14px 13px; border: 0; border-radius: 9px; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px var(--line); text-align: left; cursor: pointer; }
 .mode-option:hover { background: #fcfdfe; box-shadow: 0 0 0 1px var(--line-strong); }
-.mode-option.is-selected { background: #fffaf5; box-shadow: 0 0 0 2px #f2a35f; }
+.mode-option.is-selected { background: #f8fafc; box-shadow: 0 0 0 2px var(--ink); }
 .mode-option-icon { display: grid; width: 31px; height: 31px; flex: 0 0 auto; place-items: center; border-radius: 8px; color: var(--muted); background: #f1f3f6; }
 .mode-option.is-selected .mode-option-icon { color: var(--orange-dark); background: var(--orange-soft); }
 .mode-option-copy { min-width: 0; flex: 1; }
@@ -142,8 +142,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .pipeline-marker { display: grid; width: 22px; height: 22px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px var(--line); }
 .pipeline-marker > span { width: 6px; height: 6px; border-radius: 50%; background: #b5bec9; }
 .pipeline-dash { width: auto !important; height: auto !important; background: transparent !important; font-size: 14px; }
-.is-active .pipeline-marker { color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 1px #a9c7f4; }
-.is-complete .pipeline-marker { color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 1px #b9e2ca; }
+.is-active .pipeline-marker { color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 1px #bfdbfe; }
+.is-complete .pipeline-marker { color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 1px #bbf7d0; }
 .pipeline-copy { min-width: 0; }
 .pipeline-copy strong, .pipeline-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipeline-copy strong { color: inherit; font-size: 13px; font-weight: 600; }
@@ -212,13 +212,13 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .empty-state span { font-size: 14px; }
 .large-empty { align-items: center; justify-content: center; min-height: 180px; text-align: center; }
 
-.workflow-strip { display: flex; align-items: center; justify-content: space-between; gap: 26px; padding: 21px 23px; border-radius: 12px; background: #fffaf5; box-shadow: 0 0 0 1px #ead8c7; }
+.workflow-strip { display: flex; align-items: center; justify-content: space-between; gap: 26px; padding: 21px 23px; border-radius: 12px; background: #f8fafc; box-shadow: 0 0 0 1px var(--line); }
 .workflow-intro { display: flex; align-items: center; gap: 11px; min-width: 310px; }
 .workflow-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: var(--orange-dark); background: var(--orange-soft); }
 .workflow-intro h2 { margin: 5px 0 3px; font-size: 17px; font-weight: 600; }
 .workflow-intro p { margin: 0; color: var(--muted); font-size: 13px; }
 .workflow-steps { display: grid; grid-template-columns: repeat(4, 1fr); width: min(650px, 100%); }
-.workflow-steps span { display: flex; flex-direction: column; gap: 5px; padding: 0 15px; box-shadow: -1px 0 0 #ecdccc; color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.workflow-steps span { display: flex; flex-direction: column; gap: 5px; padding: 0 15px; box-shadow: -1px 0 0 var(--line); color: var(--ink-soft); font-size: 13px; font-weight: 600; }
 .workflow-steps b { color: var(--orange-dark); font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .footer { display: flex; justify-content: space-between; gap: 20px; width: min(1280px, 94vw); margin: 0 auto; padding: 19px 0 30px; color: var(--muted); font-size: 13px; }
 
@@ -258,8 +258,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .analytics-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 14px; }
 .analytics-table th, .analytics-table td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 .analytics-table th { color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
-.analytics-table thead th { position: sticky; top: 112px; z-index: 2; background: var(--panel); }
-.analytics-table tbody tr:hover, .analytics-table tbody tr.selected-row { background: #fbfcfd; }
+.analytics-table thead th { position: static; background: var(--panel); }
+.analytics-table tbody tr:hover, .analytics-table tbody tr.selected-row { background: #f8fafc; }
 .sort-button { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; font-weight: 600; cursor: pointer; }
 .rank-cell { width: 55px; color: var(--muted); }
 .record-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -296,6 +296,29 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .result-chip.win { color: var(--green); background: var(--green-soft); }
 .result-chip.loss { color: var(--red); background: var(--red-soft); }
 .result-chip.unresolved { color: var(--muted); background: #eef1f4; }
+
+/* Odds and results view */
+.odds-toolbar { margin-bottom: 16px; }
+.odds-filter-grid { grid-template-columns: 1fr 1.35fr 1fr; max-width: 850px; }
+.odds-callout { margin-top: 18px; }
+.odds-callout svg { color: var(--blue); }
+.odds-warning { margin: 0 0 16px; color: #92400e; background: #fffbeb; box-shadow: 0 0 0 1px #fde68a; }
+.odds-warning svg { flex: 0 0 auto; margin-top: 2px; color: #b45309; }
+.odds-metrics { margin-bottom: 16px; }
+.odds-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 16px; margin-bottom: 16px; }
+.odds-band-panel, .odds-method-panel, .odds-team-panel, .odds-games-panel { min-width: 0; }
+.odds-band-table, .odds-team-table, .odds-game-table { min-width: 760px; }
+.odds-team-table { min-width: 1120px; }
+.odds-game-table { min-width: 900px; }
+.odds-band-table td, .odds-team-table td, .odds-game-table td { white-space: nowrap; }
+.odds-band-table td:first-child, .odds-team-table td:first-child { color: var(--ink); }
+.delta-positive { color: var(--green); font-weight: 600; }
+.delta-negative { color: var(--red); font-weight: 600; }
+.odds-method-list { display: grid; gap: 0; margin: 0; }
+.odds-method-list div { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; padding: 11px 0; box-shadow: 0 1px 0 var(--line); }
+.odds-method-list dt { color: var(--muted); font-size: 13px; }
+.odds-method-list dd { margin: 0; color: var(--ink-soft); font-size: 14px; font-weight: 600; text-align: right; }
+.odds-methodology { margin-top: 16px; }
 
 /* Trend and run detail views */
 .trader-lookup, .game-selector { margin-bottom: 16px; }
@@ -373,7 +396,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .search-field { grid-column: span 2; }
   .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .primary-grid, .secondary-grid { grid-template-columns: 1fr; }
+  .primary-grid, .secondary-grid, .odds-grid { grid-template-columns: 1fr; }
   .workflow-strip { align-items: flex-start; flex-direction: column; }
   .workflow-steps { width: 100%; }
 }
@@ -402,6 +425,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .update-action-row button { width: 100%; justify-content: center; }
   .action-helper { line-height: 1.45; }
   .filter-grid { grid-template-columns: 1fr; }
+  .odds-filter-grid { grid-template-columns: 1fr; max-width: none; }
   .search-field, .game-selector-wide { grid-column: auto; }
   .date-filter-row { grid-template-columns: 1fr 1fr; }
   .filter-footer, .toolbar-top, .table-summary, .lookup-heading, .log-toolbar { align-items: flex-start; flex-direction: column; }

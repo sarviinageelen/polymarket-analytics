@@ -61,6 +61,7 @@ const TABS = [
   { id: "game", label: "Best traders by game", icon: ChartLine },
   { id: "trader", label: "Trader trends", icon: UserCircle },
   { id: "game-trends", label: "Game trends", icon: TrendUp },
+  { id: "odds", label: "Odds & results", icon: ChartLine },
   { id: "runs", label: "Run history", icon: Clock },
 ];
 
@@ -100,6 +101,12 @@ function formatPercent(value) {
   return `${Number(value).toFixed(2)}%`;
 }
 
+function formatDelta(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const number = Number(value);
+  return `${number >= 0 ? "+" : ""}${number.toFixed(2)} pp`;
+}
+
 function formatMoney(value) {
   if (value === null || value === undefined || value === "") return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value));
@@ -124,6 +131,11 @@ function formatDuration(seconds) {
   const value = Number(seconds);
   if (value < 60) return `${Math.round(value)} sec`;
   return `${Math.floor(value / 60)}m ${Math.round(value % 60)}s`;
+}
+
+function queryNumber(params, key, fallback) {
+  const value = Number(params.get(key));
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function badgeVariant(status) {
@@ -436,6 +448,47 @@ function GameTrendsView({ filters, setFilters, catalog, gameTrend, loading, erro
   return <><section className="page-heading compact-heading"><div><Kicker>Descriptive analytics</Kicker><h1>Game trends</h1><p className="page-lede">See how tracked wallets are positioned and how trading activity changed through the selected game.</p></div><div className="last-check-card"><span className="last-check-icon"><TrendUp size={20} /></span><span><small>Selection sample</small><strong>{formatNumber(total)} wallets</strong></span></div></section><LayerCard className="panel game-selector"><div className="filter-grid"><label className="field-block"><span className="field-label">Dataset</span><select className="native-select" value={filters.sport} onChange={(event) => setFilters((current) => ({ ...current, sport: event.target.value, condition_id: "" }))}><option value="wnba_2026">WNBA 2026</option><option value="nfl_2025">NFL 2025</option></select></label><label className="field-block game-selector-wide"><span className="field-label">Game</span><select className="native-select" value={filters.condition_id} onChange={(event) => setFilters((current) => ({ ...current, condition_id: event.target.value }))}>{games.map((item) => <option key={item.condition_id} value={item.condition_id}>{item.title} · {formatDateOnly(item.event_date)}</option>)}</select></label></div></LayerCard>{loading && <div className="table-state"><div className="table-skeleton" /><div className="table-skeleton" /></div>}{error && <Alert>{error}<button type="button" className="retry-inline" onClick={onRetry}>Try again</button></Alert>}{game && !loading && <><section className="metrics-grid detail-metrics"><MetricCard label="Tracked wallets" value={formatNumber(total)} detail="Wallets with trades in this game" icon={UserCircle} tone="blue" /><MetricCard label={game.team_a} value={`${formatNumber(counts["Team A"])} wallets`} detail={`${formatPercent(total ? counts["Team A"] / total * 100 : null)} of sample`} icon={ChartLine} tone="green" /><MetricCard label={game.team_b} value={`${formatNumber(counts["Team B"])} wallets`} detail={`${formatPercent(total ? counts["Team B"] / total * 100 : null)} of sample`} icon={ChartLine} tone="orange" /><MetricCard label="Hedged" value={`${formatNumber(counts.Hedged || 0)} wallets`} detail="Positive net exposure to both sides" icon={ShieldCheck} tone="violet" /></section><LayerCard className="panel trend-panel"><div className="table-summary"><div><Kicker>Game snapshot</Kicker><h2>{game.title}</h2><p>{formatDateOnly(game.event_date)} · {game.market_status} · {game.resolution_type}</p></div><div className="table-summary-meta"><span><small>Winner</small><strong>{game.winner || "Not resolved"}</strong></span><span><small>Prices</small><strong>{formatPercent(Number(game.current_price_a || 0) * 100)} / {formatPercent(Number(game.current_price_b || 0) * 100)}</strong></span></div></div><div className="selection-bars">{["Team A", "Team B", "Hedged", "Flat"].map((key) => <div className="selection-bar-row" key={key}><span>{key === "Team A" ? game.team_a : key === "Team B" ? game.team_b : key}</span><div className="meter"><span style={{ width: `${total ? counts[key] / total * 100 : 0}%` }} /></div><strong>{formatNumber(counts[key] || 0)} <small>(n={formatNumber(total)})</small></strong></div>)}</div><div className="table-scroll"><table className="analytics-table compact-table"><thead><tr><th>Time</th><th>Trades</th><th>Wallets</th><th>Volume</th><th>Average price</th><th>Team A price</th><th>Team B price</th></tr></thead><tbody>{(gameTrend.timeline || []).map((row) => <tr key={row.hour}><td>{formatDate(row.hour)}</td><td>{formatNumber(row.trades)}</td><td>{formatNumber(row.wallets)}</td><td>{formatMoney(row.volume)}</td><td>{formatPercent(Number(row.average_price || 0) * 100)}</td><td>{formatPercent(Number(row.average_price_a || 0) * 100)}</td><td>{formatPercent(Number(row.average_price_b || 0) * 100)}</td></tr>)}</tbody></table></div><p className="method-note">{gameTrend.methodology}</p></LayerCard></>}</>;
 }
 
+function OddsPerformanceView({ filters, setFilters, oddsFilters, setOddsFilters, catalog, analysis, loading, error, onRetry }) {
+  const summary = analysis?.summary || {};
+  const teams = catalog?.teams || [];
+  const teamRows = analysis?.team_rows || [];
+  const bands = analysis?.bands || [];
+  const games = analysis?.games || [];
+  const exportPath = buildQuery("/api/analytics/odds-performance", { sport: filters.sport, team: oddsFilters.team, role: oddsFilters.role, export: 1 });
+  const segmentLabel = (segment) => {
+    if (!segment || !segment.games) return "—";
+    return `${segment.wins}-${segment.losses} · ${formatPercent(segment.win_rate_pct)}`;
+  };
+  return <>
+    <section className="page-heading compact-heading">
+      <div><Kicker>Market calibration</Kicker><h1>Pre-match odds and results</h1><p className="page-lede">Compare each team’s stored pre-match market price with what happened, split by favorite, underdog, and—when the event snapshot provides it—home or away.</p></div>
+      <div className="last-check-card"><span className="last-check-icon"><ChartLine size={20} /></span><span><small>Data snapshot</small><strong>{formatNumber(summary.selected_games)} games analysed</strong></span></div>
+    </section>
+    <LayerCard className="panel odds-toolbar">
+      <div className="toolbar-top"><div><Kicker>Filters</Kicker><h2>Choose a dataset and lens</h2></div><div className="toolbar-actions"><a className="button-link secondary" href={apiUrl(exportPath)}><FileCsv size={17} /> Export CSV</a><Button type="button" variant="secondary" onClick={() => setOddsFilters({ team: "", role: "all" })}><ArrowClockwise size={16} /> Reset filters</Button></div></div>
+      <div className="filter-grid odds-filter-grid">
+        <label className="field-block"><span className="field-label">Dataset</span><select className="native-select" value={filters.sport} onChange={(event) => setFilters((current) => ({ ...current, sport: event.target.value }))}><option value="wnba_2026">WNBA 2026</option><option value="nfl_2025">NFL 2025</option></select></label>
+        <label className="field-block"><span className="field-label">Team</span><select className="native-select" value={oddsFilters.team} onChange={(event) => setOddsFilters((current) => ({ ...current, team: event.target.value }))}><option value="">All teams</option>{teams.map((team) => <option key={team} value={team}>{team}</option>)}</select></label>
+        <label className="field-block"><span className="field-label">View</span><select className="native-select" value={oddsFilters.role} onChange={(event) => setOddsFilters((current) => ({ ...current, role: event.target.value }))}><option value="all">All team roles</option><option value="favorite">Favorites only</option><option value="underdog">Underdogs only</option><option value="home">Home teams only</option><option value="away">Away teams only</option></select></label>
+      </div>
+      <div className="info-callout odds-callout"><Info size={17} /><span><strong>How to read this:</strong> the price is a Polymarket trade-price proxy captured before kickoff. It is not a sportsbook line, and a positive calibration delta means the team won more often than its average observed price implied.</span></div>
+    </LayerCard>
+    {error && <Alert>{error}<button type="button" className="retry-inline" onClick={onRetry}>Try again</button></Alert>}
+    {loading && <div className="table-state"><div className="table-skeleton" /><div className="table-skeleton" /><div className="table-skeleton" /></div>}
+    {!loading && analysis && <>
+      {Number(summary.games_missing_prematch_prices || 0) > 0 && <div className="info-callout odds-warning"><WarningCircle size={17} /><span>{formatNumber(summary.games_missing_prematch_prices)} resolved market{Number(summary.games_missing_prematch_prices) === 1 ? "" : "s"} did not have two pre-match prices and {summary.tie_markets ? "ties are excluded from win-rate calculations." : "were excluded from win-rate calculations."}</span></div>}
+      <section className="metrics-grid odds-metrics"><MetricCard label="Games analysed" value={formatNumber(summary.selected_games)} detail="Resolved, non-tie games with prices" icon={CheckCircle} tone="green" /><MetricCard label="Favorite win rate" value={formatPercent(summary.favorite_win_rate_pct)} detail={`n=${formatNumber(summary.favorite_games)}`} icon={Trophy} tone="blue" /><MetricCard label="Average favorite price" value={formatPercent(summary.avg_favorite_implied_pct)} detail="Before cached kickoff" icon={ChartLine} tone="violet" /><MetricCard label="Home / away coverage" value={formatPercent(summary.home_away_coverage_pct)} detail={`${formatNumber(summary.home_away_games)} games mapped`} icon={ShieldCheck} tone="orange" /></section>
+      <section className="odds-grid">
+        <LayerCard className="panel odds-band-panel"><div className="panel-header"><div className="panel-heading-copy"><Kicker>Favorite price bands</Kicker><h2>How often favorites win</h2><p>Each band compares the average pre-match price with the realized favorite win rate.</p></div></div><div className="table-scroll"><table className="analytics-table compact-table odds-band-table"><thead><tr><th>Price band</th><th>Games</th><th>Favorite wins</th><th>Actual rate</th><th>Avg price</th><th>Delta</th></tr></thead><tbody>{bands.map((row) => <tr key={row.band}><td><strong>{row.band}</strong></td><td>{formatNumber(row.games)}</td><td>{formatNumber(row.wins)}–{formatNumber(row.losses)}</td><td>{formatPercent(row.win_rate_pct)}</td><td>{formatPercent(row.avg_implied_pct)}</td><td className={Number(row.calibration_delta_pct) >= 0 ? "delta-positive" : "delta-negative"}>{formatDelta(row.calibration_delta_pct)}</td></tr>)}</tbody></table></div></LayerCard>
+        <LayerCard className="panel odds-method-panel"><div className="panel-header"><div className="panel-heading-copy"><Kicker>Method and coverage</Kicker><h2>What is in the comparison</h2></div></div><dl className="odds-method-list"><div><dt>Markets in snapshot</dt><dd>{formatNumber(summary.markets_total)}</dd></div><div><dt>Resolved markets</dt><dd>{formatNumber(summary.resolved_markets)}</dd></div><div><dt>Pre-match prices</dt><dd>{formatNumber(summary.games_with_prematch_prices)}</dd></div><div><dt>Venue metadata</dt><dd>{formatPercent(summary.home_away_coverage_pct)}</dd></div></dl><p className="method-note">{analysis.methodology?.calibration}</p></LayerCard>
+      </section>
+      <LayerCard className="panel odds-team-panel"><div className="table-summary"><div><Kicker>Team performance</Kicker><h2>{oddsFilters.team ? `${oddsFilters.team} by role` : "Teams by role"}</h2><p>Record, observed price, and calibration delta. Home/away rows are only shown when cached event metadata identifies the venue.</p></div><div className="table-summary-meta"><span><small>Role filter</small><strong>{oddsFilters.role === "all" ? "All roles" : oddsFilters.role}</strong></span><span><small>Teams</small><strong>{formatNumber(teamRows.length)}</strong></span></div></div><div className="table-scroll"><table className="analytics-table odds-team-table"><caption className="sr-only">Team pre-match odds and results</caption><thead><tr><th>Team</th><th>Games</th><th>Record</th><th>Win rate</th><th>Avg implied</th><th>Delta</th><th>Favorite</th><th>Underdog</th><th>Home</th><th>Away</th></tr></thead><tbody>{teamRows.map((row) => <tr key={row.team}><td><strong>{row.team}</strong></td><td>{formatNumber(row.games)}</td><td>{row.wins}–{row.losses}</td><td>{formatPercent(row.win_rate_pct)}</td><td>{formatPercent(row.avg_implied_pct)}</td><td className={Number(row.calibration_delta_pct) >= 0 ? "delta-positive" : "delta-negative"}>{formatDelta(row.calibration_delta_pct)}</td><td>{segmentLabel(row.favorite)}</td><td>{segmentLabel(row.underdog)}</td><td>{segmentLabel(row.home)}</td><td>{segmentLabel(row.away)}</td></tr>)}</tbody></table></div>{!teamRows.length && <div className="empty-state"><ChartLine size={27} /><strong>No team rows match this lens.</strong><span>Try all roles or clear the team filter.</span></div>}</LayerCard>
+      <LayerCard className="panel odds-games-panel"><div className="table-summary"><div><Kicker>Game-level audit</Kicker><h2>Pre-match price and result</h2><p>Use this table to inspect the source-backed rows behind the aggregate rates.</p></div><div className="table-summary-meta"><span><small>Rows</small><strong>{formatNumber(games.length)}</strong></span></div></div><div className="table-scroll"><table className="analytics-table odds-game-table"><thead><tr><th>Date</th><th>Matchup</th><th>Favorite</th><th>Price</th><th>Winner</th><th>Favorite result</th><th>Home</th><th>Away</th></tr></thead><tbody>{games.map((game) => <tr key={game.condition_id}><td>{formatDateOnly(game.event_date)}</td><td>{game.title}</td><td>{game.favorite_team || "—"}</td><td>{formatPercent(game.favorite_implied_pct)}</td><td>{game.winner || (game.resolution === "tie" ? "Tie" : "—")}</td><td><span className={`result-chip ${game.favorite_result || "unresolved"}`}>{game.favorite_result || "No price"}</span></td><td>{game.home_team || "Unknown"}</td><td>{game.away_team || "Unknown"}</td></tr>)}</tbody></table></div></LayerCard>
+      <details className="methodology odds-methodology"><summary>Full methodology</summary><div className="methodology-copy"><p>{analysis.methodology?.pre_match_price}</p><p>{analysis.methodology?.favorite}</p><p>{analysis.methodology?.home_away}</p><p>{analysis.methodology?.calibration}</p></div></details>
+    </>}
+  </>;
+}
+
 function RunHistoryView({ data, selectedRunId, setSelectedRunId, runDetail, setRunDetail, onRefresh, onCopy }) {
   const [level, setLevel] = useState("");
   const [step, setStep] = useState("");
@@ -460,17 +513,21 @@ function RunHistoryView({ data, selectedRunId, setSelectedRunId, runDetail, setR
 }
 
 function App() {
-  const initialView = new URLSearchParams(window.location.search).get("view");
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialView = initialParams.get("view");
+  const initialSport = FALLBACK_SPORTS.some((sport) => sport.id === initialParams.get("sport")) ? initialParams.get("sport") : FALLBACK_CONFIG.sport;
   const [view, setView] = useState(VALID_VIEWS.has(initialView) ? initialView : "updates");
   const [data, setData] = useState(null);
   const [form, setForm] = useState(FALLBACK_CONFIG);
   const [formDirty, setFormDirty] = useState(false);
-  const [filters, setFilters] = useState({ sport: FALLBACK_CONFIG.sport, team: "", condition_id: "", sample: "season", min_picks: 5, include_no_pick: false, search: "", sort: "confidence_score", direction: "desc", page: 1, page_size: 25, start_date: "", end_date: "" });
+  const [filters, setFilters] = useState({ sport: initialSport, team: initialParams.get("team") || "", condition_id: initialParams.get("condition_id") || "", sample: initialParams.get("sample") || "season", min_picks: queryNumber(initialParams, "min_picks", 5), include_no_pick: ["1", "true"].includes(initialParams.get("include_no_pick")), search: initialParams.get("search") || "", sort: initialParams.get("sort") || "confidence_score", direction: initialParams.get("direction") || "desc", page: queryNumber(initialParams, "page", 1), page_size: queryNumber(initialParams, "page_size", 25), start_date: initialParams.get("start_date") || "", end_date: initialParams.get("end_date") || "" });
+  const [oddsFilters, setOddsFilters] = useState({ team: initialParams.get("odds_team") || "", role: initialParams.get("odds_role") || "all" });
   const [catalog, setCatalog] = useState(null);
   const [result, setResult] = useState(null);
   const [gameTrend, setGameTrend] = useState(null);
+  const [oddsAnalysis, setOddsAnalysis] = useState(null);
   const [trader, setTrader] = useState(null);
-  const [traderWallet, setTraderWallet] = useState("");
+  const [traderWallet, setTraderWallet] = useState(initialParams.get("wallet") || "");
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState("");
   const [error, setError] = useState("");
@@ -505,9 +562,10 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     params.set("view", view);
     if (view === "team" || view === "game") Object.entries(filters).forEach(([key, value]) => { if (value !== "" && value !== false && value !== undefined) params.set(key, value); });
+    if (view === "odds") { params.set("sport", filters.sport); if (oddsFilters.team) params.set("odds_team", oddsFilters.team); else params.delete("odds_team"); params.set("odds_role", oddsFilters.role); }
     if (view === "trader" && traderWallet) params.set("wallet", traderWallet);
     window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
-  }, [view, filters, traderWallet]);
+  }, [view, filters, oddsFilters, traderWallet]);
 
   const sports = data?.sports?.length ? data.sports : FALLBACK_SPORTS;
   const selected = useMemo(() => sports.find((sport) => sport.id === form.sport) || sports[0], [sports, form.sport]);
@@ -516,9 +574,10 @@ function App() {
   const counts = selected?.counts || {};
   const validationUrl = buildRawUrl(data?.project?.repository, data?.project?.branch, `reports/${selected?.id}_validation.json`);
   const analyticsView = view === "team" || view === "game";
+  const catalogView = analyticsView || view === "game-trends" || view === "odds";
 
   useEffect(() => {
-    if (!analyticsView && view !== "game-trends") return undefined;
+    if (!catalogView) return undefined;
     let cancelled = false;
     setAnalyticsLoading(true);
     setAnalyticsError("");
@@ -526,9 +585,10 @@ function App() {
       if (cancelled) return;
       setCatalog(response);
       setFilters((current) => ({ ...current, team: current.team && response.teams.includes(current.team) ? current.team : response.teams[0] || "", condition_id: current.condition_id && response.games.some((game) => game.condition_id === current.condition_id) ? current.condition_id : response.games[0]?.condition_id || "" }));
+      setOddsFilters((current) => ({ ...current, team: current.team && response.teams.includes(current.team) ? current.team : "" }));
     }).catch((cause) => { if (!cancelled) setAnalyticsError(cause.message || "Could not load the dataset catalog."); }).finally(() => { if (!cancelled) setAnalyticsLoading(false); });
     return () => { cancelled = true; };
-  }, [analyticsView, view, filters.sport]);
+  }, [catalogView, view, filters.sport]);
 
   useEffect(() => {
     if (!analyticsView || !catalog || (view === "team" && !catalog.teams?.includes(filters.team)) || (view === "game" && !catalog.games?.some((game) => game.condition_id === filters.condition_id))) return undefined;
@@ -550,6 +610,15 @@ function App() {
     return () => { cancelled = true; };
   }, [view, filters.sport, filters.condition_id]);
 
+  useEffect(() => {
+    if (view !== "odds") return undefined;
+    let cancelled = false;
+    setAnalyticsLoading(true);
+    setAnalyticsError("");
+    request(buildQuery("/api/analytics/odds-performance", { sport: filters.sport, team: oddsFilters.team, role: oddsFilters.role })).then((response) => { if (!cancelled) setOddsAnalysis(response); }).catch((cause) => { if (!cancelled) setAnalyticsError(cause.message || "Could not load the odds comparison."); }).finally(() => { if (!cancelled) setAnalyticsLoading(false); });
+    return () => { cancelled = true; };
+  }, [view, filters.sport, oddsFilters.team, oddsFilters.role]);
+
   function setField(name, value) { setForm((current) => ({ ...current, [name]: value })); setFormDirty(true); setNotice(""); }
   function openView(nextView) { setView(nextView); setAnalyticsError(""); if (nextView !== "trader") setTrader(null); }
   async function saveSchedule() { setSaving(true); try { const response = await request("/api/config", { method: "POST", body: JSON.stringify(form) }); setForm(response.config); setFormDirty(false); setNotice(response.config.enabled ? "Schedule saved." : "Schedule paused."); setData(await request("/api/status")); } catch (cause) { setError(cause.message || "Could not save settings."); } finally { setSaving(false); } }
@@ -569,6 +638,7 @@ function App() {
       {analyticsView && <AnalyticsView dimension={view} filters={filters} setFilters={setFilters} catalog={catalog} result={result} loading={analyticsLoading} error={analyticsError} onRetry={() => setFilters((current) => ({ ...current }))} onOpenTrader={openTrader} onCopy={copyText} />}
       {view === "trader" && <TraderTrendsView sport={filters.sport} wallet={traderWallet} setWallet={setTraderWallet} trader={trader} loading={analyticsLoading} error={analyticsError} onLoad={loadTrader} onCopy={copyText} />}
       {view === "game-trends" && <GameTrendsView filters={filters} setFilters={setFilters} catalog={catalog} gameTrend={gameTrend} loading={analyticsLoading} error={analyticsError} onRetry={() => setFilters((current) => ({ ...current }))} />}
+      {view === "odds" && <OddsPerformanceView filters={filters} setFilters={setFilters} oddsFilters={oddsFilters} setOddsFilters={setOddsFilters} catalog={catalog} analysis={oddsAnalysis} loading={analyticsLoading} error={analyticsError} onRetry={() => setOddsFilters((current) => ({ ...current }))} />}
       {view === "runs" && <RunHistoryView data={data} selectedRunId={selectedRunId} setSelectedRunId={setSelectedRunId} runDetail={runDetail} setRunDetail={setRunDetail} onRefresh={refreshStatus} onCopy={copyText} />}
       {view === "updates" && <section className="workflow-strip"><div className="workflow-intro"><span className="workflow-icon"><SlidersHorizontal size={20} /></span><div><Kicker>Refresh workflow</Kicker><h2>Every step leaves a local artifact</h2><p>API data, Parquet, DuckDB, analysis, validation, and the published workbook stay traceable.</p></div></div><div className="workflow-steps"><span><b>01</b>API snapshot</span><span><b>02</b>Parquet trades</span><span><b>03</b>DuckDB ledger</span><span><b>04</b>Excel + GitHub</span></div></section>}
     </main>

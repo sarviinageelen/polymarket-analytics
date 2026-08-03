@@ -32,21 +32,26 @@ from openpyxl.comments import Comment  # noqa: E402
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side  # noqa: E402
 from openpyxl.utils import get_column_letter  # noqa: E402
 from openpyxl.worksheet.table import Table, TableStyleInfo  # noqa: E402
+from polymarket_analytics.analytics import odds_performance  # noqa: E402
 
 
 DEFAULT_EXPERIMENT_DIR = ROOT / "data/experiments/nav_wnba_2026_moneyline"
 DEFAULT_OUTPUT = ROOT / "reports/generated/wnba_2026_moneyline_picks.xlsx"
 PROFILE_BASE_URL = "https://polymarket.com/profile/"
 
-NAVY = "17365D"
-BLUE = "D9EAF7"
-LIGHT_BLUE = "EAF3F8"
-GREEN = "E2F0D9"
-RED = "FCE4D6"
-YELLOW = "FFF2CC"
-GRAY = "E7E6E6"
+NAVY = "0F172A"
+BLUE = "E2E8F0"
+LIGHT_BLUE = "F8FAFC"
+GREEN = "DCFCE7"
+GREEN_TEXT = "166534"
+RED = "FEE2E2"
+RED_TEXT = "991B1B"
+YELLOW = "FEF3C7"
+YELLOW_TEXT = "92400E"
+GRAY = "F1F5F9"
+GRAY_TEXT = "475569"
 WHITE = "FFFFFF"
-DARK = "1F1F1F"
+DARK = "0F172A"
 THIN_GRAY = Side(style="thin", color="B7B7B7")
 BORDER = Border(left=THIN_GRAY, right=THIN_GRAY, top=THIN_GRAY, bottom=THIN_GRAY)
 
@@ -145,6 +150,16 @@ def style_header_row(ws: Any, row_number: int, start_column: int, end_column: in
         cell.fill = PatternFill("solid", fgColor=fill)
         cell.border = BORDER
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[row_number].height = 30
+
+
+def fill_cell(cell: Any, fill: str, font_color: str = DARK) -> None:
+    """Apply a semantic fill and an accessible text color together."""
+
+    cell.fill = PatternFill("solid", fgColor=fill)
+    font = copy(cell.font)
+    font.color = font_color
+    cell.font = font
 
 
 def safe_table_name(name: str) -> str:
@@ -393,10 +408,7 @@ def build_ledger_rows(
 
 def format_cell(cell: Any, header: str, value: Any) -> None:
     cell.border = BORDER
-    cell.alignment = Alignment(
-        vertical="top",
-        wrap_text=header in {"Matchup", "Bettor", "Wallet", "Primary Pick", "Pick Basis", "Net Position"},
-    )
+    cell.alignment = Alignment(vertical="center", wrap_text=False)
     if header == "Event Date" and value:
         cell.number_format = "yyyy-mm-dd"
     elif header in {"First Trade UTC", "Last Trade UTC"} and value:
@@ -445,14 +457,17 @@ def write_games_sheet(wb: Workbook, games: list[dict[str, Any]], season: str, sc
             cell = ws.cell(row_number, column, value)
             format_cell(cell, header, value)
             if header == "Status":
-                cell.fill = PatternFill("solid", fgColor={
+                fill_cell(cell, {
                     "Closed": GREEN, "Live": BLUE, "Open": YELLOW, "Upcoming": GRAY,
                     "Stale / unresolved": RED,
-                }.get(str(value), LIGHT_BLUE))
+                }.get(str(value), LIGHT_BLUE), {
+                    "Closed": GREEN_TEXT, "Live": DARK, "Open": YELLOW_TEXT,
+                    "Upcoming": GRAY_TEXT, "Stale / unresolved": RED_TEXT,
+                }.get(str(value), GRAY_TEXT))
             if header == "Resolution" and value == "Resolved":
-                cell.fill = PatternFill("solid", fgColor=GREEN)
+                fill_cell(cell, GREEN, GREEN_TEXT)
             if header == "Resolution" and value == "Unresolved":
-                cell.fill = PatternFill("solid", fgColor=YELLOW)
+                fill_cell(cell, YELLOW, YELLOW_TEXT)
         ws.cell(row_number, 6).comment = Comment(
             f"Condition ID: {game['condition_id']}\n"
             f"Market status: {game['status']}\n"
@@ -460,6 +475,7 @@ def write_games_sheet(wb: Workbook, games: list[dict[str, Any]], season: str, sc
             f"Current prices: {game['current_price_a']} / {game['current_price_b']}",
             "Polymarket Analytics",
         )
+        ws.row_dimensions[row_number].height = 20
     add_table(ws, "GamesTable", 4, 4 + len(games), len(headers))
     ws.freeze_panes = "A5"
     widths = [9, 12, 13, 22, 22, 42, 13, 22, 14, 14, 14, 14, 14, 13, 12, 12, 68, 10, 34, 42, 21]
@@ -501,6 +517,7 @@ def write_summary_sheet(wb: Workbook, name: str, rows: list[dict[str, Any]], fil
                 cell.number_format = "0.00%"
             if header == "ROI" and value is not None:
                 cell.number_format = "0.00%"
+        ws.row_dimensions[row_number].height = 20
     add_table(ws, f"{name}Table", 4, 4 + len(rows), len(headers))
     ws.freeze_panes = "A5"
     widths = [32, 45, 25, 10, 14, 15, 9, 10, 9, 10, 16, 20, 16, 17, 10, 12]
@@ -532,16 +549,22 @@ def write_ledger_sheet(
             if header in {"Bettor", "Wallet"}:
                 add_profile_hyperlink(cell, str(row.get("Wallet") or ""))
             if header == "Pick Correct?":
-                cell.fill = PatternFill("solid", fgColor={
+                fill_cell(cell, {
                     "Yes": GREEN, "No": RED, "N/A": YELLOW,
-                }.get(str(value), GRAY))
+                }.get(str(value), GRAY), {
+                    "Yes": GREEN_TEXT, "No": RED_TEXT, "N/A": YELLOW_TEXT,
+                }.get(str(value), GRAY_TEXT))
             if header == "Status":
-                cell.fill = PatternFill("solid", fgColor={
+                fill_cell(cell, {
                     "Closed": GREEN, "Live": BLUE, "Open": YELLOW, "Upcoming": GRAY,
                     "Stale / unresolved": RED,
-                }.get(str(value), LIGHT_BLUE))
+                }.get(str(value), LIGHT_BLUE), {
+                    "Closed": GREEN_TEXT, "Live": DARK, "Open": YELLOW_TEXT,
+                    "Upcoming": GRAY_TEXT, "Stale / unresolved": RED_TEXT,
+                }.get(str(value), GRAY_TEXT))
             if header == "Ledger Result" and value == "Unsettled":
-                cell.fill = PatternFill("solid", fgColor=BLUE)
+                fill_cell(cell, BLUE, DARK)
+        ws.row_dimensions[row_number].height = 20
     add_table(ws, f"{name}Table", 4, 4 + len(rows), len(headers))
     if rows:
         ws.freeze_panes = "A5"
@@ -566,6 +589,7 @@ def write_matrix_sheet(
     candidates: list[dict[str, Any]],
     ledger_rows: list[dict[str, Any]],
     games: list[dict[str, Any]],
+    season: str,
     filter_description: str,
 ) -> None:
     ws = wb.create_sheet(name)
@@ -574,7 +598,7 @@ def write_matrix_sheet(
     end_column = start_game_column + len(games) - 1
     style_title(
         ws,
-        f"WNBA 2026 Picks Matrix — {filter_description}",
+        f"{season} Picks Matrix — {filter_description}",
         "Each game is a column. Closed games show inferred picks; open/live/upcoming cells are marked and are not scored as correct or incorrect.",
         end_column,
     )
@@ -623,21 +647,20 @@ def write_matrix_sheet(
                 continue
             cell = ws.cell(row_number, start_game_column + game_index)
             value = row["Primary Pick"]
-            if game["resolution"] not in {"resolved", "tie"}:
-                value = f"{value}\n{status_label(game['status']).upper()}"
             cell.value = value
             cell.border = BORDER
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=False)
             if game["resolution"] == "tie" or row["Primary Pick"] == "Both / hedged":
-                cell.fill = PatternFill("solid", fgColor=YELLOW)
+                fill_cell(cell, YELLOW, YELLOW_TEXT)
             elif game["resolution"] not in {"resolved", "tie"}:
-                cell.fill = PatternFill("solid", fgColor=BLUE)
+                fill_cell(cell, BLUE, DARK)
             elif row["Pick Correct?"] == "Yes":
-                cell.fill = PatternFill("solid", fgColor=GREEN)
+                fill_cell(cell, GREEN, GREEN_TEXT)
             elif row["Pick Correct?"] == "No":
-                cell.fill = PatternFill("solid", fgColor=RED)
+                fill_cell(cell, RED, RED_TEXT)
             else:
-                cell.fill = PatternFill("solid", fgColor=GRAY)
+                fill_cell(cell, GRAY, GRAY_TEXT)
+        ws.row_dimensions[row_number].height = 20
     end_row = 7 + len(candidate_rows)
     ws.auto_filter.ref = f"A7:{get_column_letter(end_column)}{end_row}"
     ws.freeze_panes = f"{get_column_letter(start_game_column)}8"
@@ -652,6 +675,127 @@ def write_matrix_sheet(
         ws.column_dimensions[get_column_letter(column)].width = width
     for column in range(start_game_column, end_column + 1):
         ws.column_dimensions[get_column_letter(column)].width = 17
+
+
+def _section_heading(ws: Any, row_number: int, title: str, end_column: int) -> None:
+    ws.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=end_column)
+    cell = ws.cell(row_number, 1, title)
+    fill_cell(cell, NAVY, WHITE)
+    cell.font = Font(bold=True, color=WHITE, size=12)
+    cell.alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[row_number].height = 23
+
+
+def _odds_segment_text(segment: dict[str, Any] | None) -> str:
+    if not segment or not segment.get("games"):
+        return "—"
+    return f"{segment.get('wins', 0)}-{segment.get('losses', 0)}"
+
+
+def write_odds_sheet(wb: Workbook, odds: dict[str, Any], season: str) -> None:
+    """Add the same pre-match price comparison used by the web dashboard."""
+
+    ws = wb.create_sheet("Odds vs Results")
+    summary = odds.get("summary", {})
+    bands = odds.get("bands", [])
+    team_rows = odds.get("team_rows", [])
+    games = odds.get("games", [])
+    end_column = 15
+    style_title(
+        ws,
+        f"{season} Pre-match odds vs results",
+        "The price is the latest local trade-price proxy at or before cached kickoff. It is not a sportsbook closing line; delta is actual win rate minus average observed price.",
+        end_column,
+    )
+    _section_heading(ws, 4, "Favorite price bands", 7)
+    band_headers = ["Price band", "Games", "Favorite wins", "Favorite losses", "Actual win %", "Avg implied %", "Delta (pp)"]
+    for column, header in enumerate(band_headers, start=1):
+        ws.cell(5, column, header)
+    style_header_row(ws, 5, 1, len(band_headers))
+    for row_number, row in enumerate(bands, start=6):
+        values = [row.get("band"), row.get("games"), row.get("wins"), row.get("losses"), row.get("win_rate_pct"), row.get("avg_implied_pct"), row.get("calibration_delta_pct")]
+        for column, (header, value) in enumerate(zip(band_headers, values), start=1):
+            cell = ws.cell(row_number, column, value)
+            format_cell(cell, header, value)
+            if header in {"Actual win %", "Avg implied %"} and value is not None:
+                cell.number_format = "0.00"
+            if header == "Delta (pp)" and value is not None:
+                fill_cell(cell, GREEN if float(value) >= 0 else RED, GREEN_TEXT if float(value) >= 0 else RED_TEXT)
+        ws.row_dimensions[row_number].height = 20
+    band_end = 5 + len(bands)
+
+    team_heading = band_end + 3
+    _section_heading(ws, team_heading, "Team performance", end_column)
+    team_header_row = team_heading + 1
+    team_headers = [
+        "Team", "Games", "Wins", "Losses", "Win %", "Avg implied %", "Delta (pp)",
+        "Favorite W-L", "Favorite win %", "Underdog W-L", "Underdog win %",
+        "Home W-L", "Home win %", "Away W-L", "Away win %",
+    ]
+    for column, header in enumerate(team_headers, start=1):
+        ws.cell(team_header_row, column, header)
+    style_header_row(ws, team_header_row, 1, len(team_headers))
+    for row_number, row in enumerate(team_rows, start=team_header_row + 1):
+        segments = {name: row.get(name) for name in ("favorite", "underdog", "home", "away")}
+        values = [
+            row.get("team"), row.get("games"), row.get("wins"), row.get("losses"), row.get("win_rate_pct"),
+            row.get("avg_implied_pct"), row.get("calibration_delta_pct"), _odds_segment_text(segments["favorite"]),
+            (segments["favorite"] or {}).get("win_rate_pct"), _odds_segment_text(segments["underdog"]),
+            (segments["underdog"] or {}).get("win_rate_pct"), _odds_segment_text(segments["home"]),
+            (segments["home"] or {}).get("win_rate_pct"), _odds_segment_text(segments["away"]),
+            (segments["away"] or {}).get("win_rate_pct"),
+        ]
+        for column, (header, value) in enumerate(zip(team_headers, values), start=1):
+            cell = ws.cell(row_number, column, value)
+            format_cell(cell, header, value)
+            if header.endswith("%") and value is not None:
+                cell.number_format = "0.00"
+            if header == "Delta (pp)" and value is not None:
+                fill_cell(cell, GREEN if float(value) >= 0 else RED, GREEN_TEXT if float(value) >= 0 else RED_TEXT)
+        ws.row_dimensions[row_number].height = 20
+    team_end = team_header_row + len(team_rows)
+    add_table(ws, "OddsTeamTable", team_header_row, team_end, len(team_headers))
+
+    games_heading = team_end + 3
+    _section_heading(ws, games_heading, "Game-level audit", 9)
+    game_header_row = games_heading + 1
+    game_headers = ["Event date", "Matchup", "Favorite", "Favorite price", "Winner", "Favorite result", "Home", "Away", "Condition ID"]
+    for column, header in enumerate(game_headers, start=1):
+        ws.cell(game_header_row, column, header)
+    style_header_row(ws, game_header_row, 1, len(game_headers))
+    for row_number, game in enumerate(games, start=game_header_row + 1):
+        values = [
+            game.get("event_date"), game.get("title"), game.get("favorite_team"), game.get("favorite_implied_pct"),
+            game.get("winner") or ("Tie" if game.get("resolution") == "tie" else None), game.get("favorite_result"),
+            game.get("home_team") or "Unknown", game.get("away_team") or "Unknown", game.get("condition_id"),
+        ]
+        for column, (header, value) in enumerate(zip(game_headers, values), start=1):
+            cell = ws.cell(row_number, column, value)
+            format_cell(cell, header, value)
+            if header == "Event date" and value:
+                cell.number_format = "yyyy-mm-dd"
+            if header == "Favorite price" and value is not None:
+                cell.number_format = "0.00"
+            if header == "Favorite result":
+                result = str(value or "")
+                fill_cell(cell, GREEN if result == "win" else RED if result == "loss" else YELLOW if result == "tie" else GRAY, GREEN_TEXT if result == "win" else RED_TEXT if result == "loss" else YELLOW_TEXT if result == "tie" else GRAY_TEXT)
+        ws.row_dimensions[row_number].height = 20
+    game_end = game_header_row + len(games)
+    add_table(ws, "OddsGameTable", game_header_row, game_end, len(game_headers))
+    ws.freeze_panes = "A6"
+    widths = [18, 42, 26, 16, 23, 18, 25, 25, 68, 13, 16, 14, 16, 14, 16]
+    for column, width in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(column)].width = width
+    ws.sheet_view.showGridLines = False
+
+
+def infer_events_path(experiment_dir: Path) -> Path:
+    key = experiment_dir.name
+    if key.startswith("nav_"):
+        key = key[4:]
+    if key.endswith("_moneyline"):
+        key = key[:-10]
+    return ROOT / "data" / "raw" / f"{key}_events.json"
 
 
 def write_readme(
@@ -677,9 +821,10 @@ def write_readme(
     min_date = min((game["event_date"] for game in games if game["event_date"]), default=None)
     max_date = max((game["event_date"] for game in games if game["event_date"]), default=None)
     generated = str(manifest.get("generated_at_utc") or manifest.get("fetched_at_utc") or "")
+    season = str(manifest.get("season") or "the selected season")
     rows = [
         ("Scope", f"{len(games)} full-game moneyline markets from {min_date} through {max_date} in the local snapshot."),
-        ("Snapshot", f"Generated/fetched at {generated or 'timestamp not recorded'}; the WNBA season is ongoing, so this workbook is a point-in-time view."),
+        ("Snapshot", f"Generated/fetched at {generated or 'timestamp not recorded'}; {season} is represented as a point-in-time local view."),
         ("Market status", f"Closed: {status_counts['closed']}; live: {status_counts['live']}; open: {status_counts['open']}; stale/unresolved: {status_counts['stale_unresolved']}; upcoming: {status_counts['upcoming']}."),
         ("Resolution", f"Resolved: {resolution_counts['resolved']}; tie: {resolution_counts['tie']}; unresolved: {resolution_counts['unresolved']}. Unresolved markets are never treated as losses or wins."),
         ("Source", f"Nav1212/PolyMarketAnalytics ETL components, pinned to commit {manifest.get('source_revision', 'not recorded')}."),
@@ -693,6 +838,7 @@ def write_readme(
         ("Open Exposure", "Current mark-to-market value of unresolved positions using the latest cached Gamma outcome prices. It is not realized profit."),
         ("Profiles", "Bettor and Wallet cells are clickable hyperlinks to https://polymarket.com/profile/{wallet}."),
         ("Audit trail", "Picks Ledger sheets retain condition IDs, status, current/final prices, wallet addresses, BUY/SELL totals, position, settlement, and P&L fields."),
+        ("Odds vs results", "The Odds vs Results sheet compares the last local trade price at or before cached kickoff with resolved outcomes. Home/away uses cached event ordering; delta is descriptive calibration, not a guaranteed edge."),
         ("Source repository", "https://github.com/Nav1212/PolyMarketAnalytics"),
         ("Trade API docs", "https://docs.polymarket.com/api-reference/core/get-trades-for-a-user-or-markets"),
     ]
@@ -732,14 +878,18 @@ def main() -> int:
     rows_5 = [row for row in all_ledger_rows if row["Wallet"] in candidate_5_summaries]
     rows_10 = [row for row in all_ledger_rows if row["Wallet"] in candidate_10_summaries]
     open_rows = [row for row in all_ledger_rows if row["Resolution"] not in {"Resolved", "Tie"}]
+    db_candidates = sorted((experiment_dir / "silver").glob("*.duckdb"))
+    odds = odds_performance(db_candidates[0], infer_events_path(experiment_dir)) if db_candidates else {"summary": {}, "bands": [], "team_rows": [], "games": []}
 
     output.parent.mkdir(parents=True, exist_ok=True)
     workbook = Workbook()
     scope = f"Configured season window: {manifest.get('start_date')} through {manifest.get('end_date')}; future games appear as they are listed by the API."
     write_readme(workbook, manifest, games, candidates_5, candidates_10)
+    write_odds_sheet(workbook, odds, str(manifest.get("season") or "Selected season"))
     write_games_sheet(workbook, games, str(manifest.get("season") or "WNBA 2026"), scope)
-    write_matrix_sheet(workbook, "Picks Matrix (10+)", candidates_10, rows_10, games, "≥10 settled games / ≥70% win rate")
-    write_matrix_sheet(workbook, "Picks Matrix (5+)", candidates_5, rows_5, games, "≥5 settled games / ≥70% win rate")
+    season = str(manifest.get("season") or "Selected season")
+    write_matrix_sheet(workbook, "Picks Matrix (10+)", candidates_10, rows_10, games, season, "≥10 settled games / ≥70% win rate")
+    write_matrix_sheet(workbook, "Picks Matrix (5+)", candidates_5, rows_5, games, season, "≥5 settled games / ≥70% win rate")
     write_ledger_sheet(
         workbook,
         "Picks Ledger (10+)",
