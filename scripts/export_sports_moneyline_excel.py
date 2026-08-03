@@ -170,7 +170,9 @@ def safe_table_name(name: str) -> str:
 def add_table(ws: Any, name: str, start_row: int, end_row: int, end_column: int) -> None:
     """Add a table; its built-in filter is the only filter definition needed."""
 
-    if end_row < start_row or end_column < 1:
+    # Excel does not reliably preserve a table that contains only its header
+    # row. Empty ledger views should remain a normal empty worksheet instead.
+    if end_row <= start_row or end_column < 1:
         return
     ref = f"A{start_row}:{get_column_letter(end_column)}{end_row}"
     table = Table(displayName=safe_table_name(name), ref=ref)
