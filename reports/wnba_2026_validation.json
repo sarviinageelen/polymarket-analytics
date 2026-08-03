@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-03T08:19:52.346851+00:00",
+  "generated_at_utc": "2026-08-03T13:28:40.126705+00:00",
   "local": {
     "manifest": {
       "series_id": 10105,
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-03T08:18:55.955432+00:00",
+      "generated_at_utc": "2026-08-03T13:27:47.188342+00:00",
       "market_count": 265,
-      "trade_count": 829633,
-      "ledger_count": 102351
+      "trade_count": 829808,
+      "ledger_count": 102394
     },
     "market_status_resolution_counts": {
       "closed:resolved": 224,
@@ -20,38 +20,14 @@
     "ledger_result_counts": {
       "flat": 231,
       "loss": 45135,
-      "unsettled": 285,
+      "unsettled": 328,
       "win": 56700
     },
     "event_cache_events": 265,
     "event_cache_moneyline_markets": 265
   },
-  "external": {
-    "gamma_scope": {
-      "remote_events": 265,
-      "local_events": 265,
-      "remote_moneyline_markets": 265,
-      "local_moneyline_markets": 265,
-      "missing_local_conditions": 0,
-      "extra_local_conditions": 0
-    }
-  },
-  "onchain": {
-    "samples": [
-      {
-        "transaction_hash": "0x43b921c3151dc344c45e76d574ae2158fdf49f7a346ed957e3801cfdca68bc50",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      },
-      {
-        "transaction_hash": "0x1cdd1571d09d63637e65c5e697300c4c5704022556a5e430afe331f3ee50a216",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      }
-    ]
-  },
+  "external": {},
+  "onchain": {},
   "checks": [
     {
       "name": "event cache scope and moneyline filter",
@@ -82,11 +58,11 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_unique_trades": 829633,
-        "parquet_raw_trades": 835140,
-        "parquet_unique_trades": 829633,
-        "duckdb_trades": 829633,
-        "refresh_duplicate_rows": 5507
+        "manifest_unique_trades": 829808,
+        "parquet_raw_trades": 835971,
+        "parquet_unique_trades": 829808,
+        "duckdb_trades": 829808,
+        "refresh_duplicate_rows": 6163
       }
     },
     {
@@ -121,7 +97,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 102351
+        "ledger_rows": 102394
       }
     },
     {
@@ -152,7 +128,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-03T08:19:35.664423+00:00"
+        "capture_time_utc": "2026-08-03T13:28:29.681556+00:00"
       }
     },
     {
@@ -160,7 +136,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 5.820766091346741e-11,
+        "max_cash_flow_residual": 1.1641532182693481e-10,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
@@ -243,101 +219,26 @@
       }
     },
     {
-      "name": "Gamma event and moneyline census",
-      "status": "pass",
-      "severity": "high",
+      "name": "External Gamma/CLOB/ESPN checks",
+      "status": "not_run",
+      "severity": "low",
       "evidence": {
-        "remote_events": 265,
-        "local_events": 265,
-        "remote_moneyline_markets": 265,
-        "local_moneyline_markets": 265,
-        "missing_local_conditions": 0,
-        "extra_local_conditions": 0
-      }
-    },
-    {
-      "name": "Gamma market metadata spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "event_id": "723974",
-        "condition_id": "0x2573dbe9ff7c36753654751e9d9efaae990e75a65f96fd6964ae883765f0cb24",
-        "local_market_closed": true,
-        "remote_market_closed": true,
-        "outcomes_match": true
-      }
-    },
-    {
-      "name": "CLOB status spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "condition_id": "0x2573dbe9ff7c36753654751e9d9efaae990e75a65f96fd6964ae883765f0cb24",
-        "closed": true,
-        "accepting_orders": false,
-        "local_market_closed": true
-      }
-    },
-    {
-      "name": "ESPN schedule spot check",
-      "status": "pass",
-      "severity": "medium",
-      "evidence": {
-        "event_id": "723974",
-        "local_title": "Indiana Fever vs. Minnesota Lynx",
-        "local_teams": [
-          "indianafever",
-          "minnesotalynx"
-        ],
-        "espn_teams": [
-          [
-            "minnesotalynx",
-            "indianafever"
-          ],
-          [
-            "portlandfire",
-            "losangelessparks"
-          ],
-          [
-            "dallaswings",
-            "connecticutsun"
-          ],
-          [
-            "goldenstatevalkyries",
-            "torontotempo"
-          ]
-        ],
-        "espn_sport": "basketball/wnba",
-        "scoreboard_date": "20260802"
+        "reason": "--skip-network"
       }
     },
     {
       "name": "Polygon transaction receipt spot check",
-      "status": "pass",
-      "severity": "medium",
+      "status": "not_run",
+      "severity": "low",
       "evidence": {
-        "samples": [
-          {
-            "transaction_hash": "0x43b921c3151dc344c45e76d574ae2158fdf49f7a346ed957e3801cfdca68bc50",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          },
-          {
-            "transaction_hash": "0x1cdd1571d09d63637e65c5e697300c4c5704022556a5e430afe331f3ee50a216",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          }
-        ],
-        "usable_samples": 2
+        "reason": "--skip-network"
       }
     }
   ],
   "counts": {
-    "pass": 20,
+    "pass": 15,
     "warning": 0,
     "fail": 0,
-    "not_run": 0
+    "not_run": 2
   }
 }
