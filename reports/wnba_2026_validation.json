@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-03T20:25:40.865304+00:00",
+  "generated_at_utc": "2026-08-03T21:26:53.219378+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-03T20:24:46.555997+00:00",
+      "generated_at_utc": "2026-08-03T21:25:55.750390+00:00",
       "market_count": 265,
-      "trade_count": 830473,
-      "ledger_count": 102602
+      "trade_count": 830608,
+      "ledger_count": 102628
     },
     "market_status_resolution_counts": {
       "closed:resolved": 224,
@@ -20,7 +20,7 @@
     "ledger_result_counts": {
       "flat": 231,
       "loss": 45135,
-      "unsettled": 536,
+      "unsettled": 562,
       "win": 56700
     },
     "event_cache_events": 265,
@@ -58,11 +58,11 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_unique_trades": 830473,
-        "parquet_raw_trades": 841494,
-        "parquet_unique_trades": 830473,
-        "duckdb_trades": 830473,
-        "refresh_duplicate_rows": 11021
+        "manifest_unique_trades": 830608,
+        "parquet_raw_trades": 843125,
+        "parquet_unique_trades": 830608,
+        "duckdb_trades": 830608,
+        "refresh_duplicate_rows": 12517
       }
     },
     {
@@ -97,7 +97,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 102602
+        "ledger_rows": 102628
       }
     },
     {
@@ -128,7 +128,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-03T20:25:30.079905+00:00"
+        "capture_time_utc": "2026-08-03T21:26:41.338076+00:00"
       }
     },
     {
@@ -136,7 +136,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 2.3283064365386963e-10,
+        "max_cash_flow_residual": 5.820766091346741e-11,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
@@ -180,7 +180,7 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 28459,
+        "hyperlinks_to_profiles": 28471,
         "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
         "table_counts": {
           "Read Me": 0,
