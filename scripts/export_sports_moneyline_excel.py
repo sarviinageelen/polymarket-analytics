@@ -210,8 +210,10 @@ def normalize_market(row: dict[str, Any]) -> dict[str, Any]:
     prices = [finite_float(item) for item in (parse_jsonish(row.get("outcome_prices"), []) or [])]
     if len(outcomes) != 2:
         raise ValueError(f"moneyline {row.get('condition_id')} does not have two outcomes")
-    status = str(row.get("market_status") or "unknown").lower()
     resolution = str(row.get("resolution_type") or "unresolved").lower()
+    status = str(row.get("market_status") or "unknown").lower()
+    if status == "unknown" and resolution in {"resolved", "tie"}:
+        status = "closed"
     return {
         "condition_id": str(row.get("condition_id") or ""),
         "event_id": str(row.get("event_id") or ""),
@@ -593,13 +595,13 @@ def write_matrix_sheet(
     filter_description: str,
 ) -> None:
     ws = wb.create_sheet(name)
-    static_headers = ["Bettor", "Settled Games", "Wins", "Losses", "Win %", "Realized P&L", "Open Exposure"]
+    static_headers = ["User", "Games", "Wins", "Losses", "Win %", "Realized P&L"]
     start_game_column = len(static_headers) + 1
     end_column = start_game_column + len(games) - 1
     style_title(
         ws,
         f"{season} Picks Matrix — {filter_description}",
-        "Each game is a column. Closed games show inferred picks; open/live/upcoming cells are marked and are not scored as correct or incorrect.",
+        "Each game is a column. Closed games show inferred picks; open/live/upcoming cells are marked and are not scored as correct or incorrect. X in row 3 marks the last closed game; open/upcoming games begin to its right.",
         end_column,
     )
     for column, header in enumerate(static_headers, start=1):
@@ -632,7 +634,7 @@ def write_matrix_sheet(
     for row_number, candidate in enumerate(candidate_rows, start=8):
         values = [
             candidate["display_name"], candidate["settled_markets"], candidate["wins"],
-            candidate["losses"], candidate["win_rate"], candidate["total_pnl"], candidate["open_exposure"],
+            candidate["losses"], candidate["win_rate"], candidate["total_pnl"],
         ]
         for column, (header, value) in enumerate(zip(static_headers, values), start=1):
             cell = ws.cell(row_number, column, value)
@@ -661,20 +663,35 @@ def write_matrix_sheet(
             else:
                 fill_cell(cell, GRAY, GRAY_TEXT)
         ws.row_dimensions[row_number].height = 20
+    closed_indexes = [
+        index for index, game in enumerate(games)
+        if game.get("status") == "closed" or game.get("resolution") in {"resolved", "tie"}
+    ]
+    if closed_indexes:
+        marker_column = start_game_column + max(closed_indexes)
+        marker = ws.cell(3, marker_column, "X")
+        marker.font = Font(bold=True, size=14, color=YELLOW_TEXT)
+        marker.fill = PatternFill("solid", fgColor=YELLOW)
+        marker.border = BORDER
+        marker.alignment = Alignment(horizontal="center", vertical="center")
+        marker.comment = Comment(
+            "Last closed game in this matrix. Open, live, upcoming, or unresolved games begin to the right.",
+            "Polymarket Analytics",
+        )
     end_row = 7 + len(candidate_rows)
     ws.auto_filter.ref = f"A7:{get_column_letter(end_column)}{end_row}"
     ws.freeze_panes = f"{get_column_letter(start_game_column)}8"
-    ws.sheet_view.zoomScale = 55
+    ws.sheet_view.zoomScale = 60
     ws.sheet_view.showGridLines = False
     ws.row_dimensions[4].height = 23
     ws.row_dimensions[5].height = 22
     ws.row_dimensions[6].height = 42
     ws.row_dimensions[7].height = 25
-    widths = [32, 14, 9, 10, 10, 16, 16]
+    widths = [24, 9, 8, 8, 9, 14]
     for column, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(column)].width = width
     for column in range(start_game_column, end_column + 1):
-        ws.column_dimensions[get_column_letter(column)].width = 17
+        ws.column_dimensions[get_column_letter(column)].width = 15
 
 
 def _section_heading(ws: Any, row_number: int, title: str, end_column: int) -> None:
