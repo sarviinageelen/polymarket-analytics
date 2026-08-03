@@ -305,6 +305,36 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .odds-warning { margin: 0 0 16px; color: #92400e; background: #fffbeb; box-shadow: 0 0 0 1px #fde68a; }
 .odds-warning svg { flex: 0 0 auto; margin-top: 2px; color: #b45309; }
 .odds-metrics { margin-bottom: 16px; }
+.calibration-panel { margin-bottom: 16px; }
+.calibration-header { align-items: flex-start; margin-bottom: 20px; }
+.calibration-takeaway { display: flex; min-width: 235px; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 9px; background: var(--blue-soft); box-shadow: 0 0 0 1px #bfdbfe; }
+.calibration-takeaway small { color: var(--muted); font-size: 12px; }
+.calibration-takeaway strong { color: var(--ink); font-size: 20px; font-weight: 600; }
+.calibration-takeaway span { color: var(--ink-soft); font-size: 13px; }
+.calibration-chart { margin: 0; }
+.chart-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; color: var(--ink-soft); font-size: 13px; }
+.chart-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 3px; }
+.legend-swatch.actual { background: var(--blue); }
+.legend-swatch.implied { background: var(--panel); box-shadow: 0 0 0 1px var(--ink-soft); }
+.calibration-guide { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 15px; color: var(--muted); font-size: 13px; }
+.calibration-guide span { display: inline-flex; align-items: center; gap: 6px; }
+.calibration-guide b { display: inline-grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; color: var(--ink-soft); background: var(--orange-soft); font-size: 12px; font-weight: 600; }
+.calibration-axis { display: flex; justify-content: space-between; margin: 0 68px 5px 126px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.calibration-rows { border-top: 1px solid var(--line); }
+.calibration-row { display: grid; grid-template-columns: minmax(100px, 126px) minmax(0, 1fr); align-items: center; gap: 13px; padding: 12px 0; }
+.calibration-row + .calibration-row { border-top: 1px solid var(--line); }
+.calibration-row-label { display: flex; flex-direction: column; gap: 2px; }
+.calibration-row-label strong { color: var(--ink-soft); font-size: 14px; font-weight: 600; }
+.calibration-row-label small { color: var(--muted); font-size: 12px; }
+.calibration-pair { display: grid; gap: 7px; min-width: 0; }
+.calibration-line { display: grid; grid-template-columns: minmax(0, 1fr) 58px; align-items: center; gap: 9px; }
+.calibration-track { display: block; height: 11px; overflow: hidden; border-radius: 999px; background: #f1f5f9; box-shadow: 0 0 0 1px var(--line); }
+.calibration-fill { display: block; height: 100%; min-width: 0; border-radius: inherit; }
+.calibration-fill.actual { background: var(--blue); }
+.calibration-fill.implied { background: var(--panel); box-shadow: inset 0 0 0 2px var(--ink-soft); }
+.calibration-line strong { color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.calibration-chart figcaption { margin-top: 14px; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .odds-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 16px; margin-bottom: 16px; }
 .odds-band-panel, .odds-method-panel, .odds-team-panel, .odds-games-panel { min-width: 0; }
 .odds-band-table, .odds-team-table, .odds-game-table { min-width: 760px; }
@@ -411,6 +441,10 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .page-heading { display: block; margin-bottom: 20px; }
   .page-heading h1 { font-size: 36px; }
   .last-check-card { width: 100%; margin-top: 17px; }
+  .calibration-header { align-items: stretch; flex-direction: column; }
+  .calibration-takeaway { min-width: 0; }
+  .calibration-axis { margin-left: 108px; }
+  .calibration-row { grid-template-columns: minmax(88px, 108px) minmax(0, 1fr); gap: 10px; }
   .dataset-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
   .dataset-bar-title { min-width: 0; }
   .dataset-scope { justify-self: end; }
