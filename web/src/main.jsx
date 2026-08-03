@@ -234,7 +234,7 @@ function App() {
             </Text>
           </div>
           <div className="hero-status">
-            <div className="status-orb"><Activity size={24} weight="bold" /></div>
+            <div className="status-orb"><Pulse size={24} weight="bold" /></div>
             <div><Text variant="secondary" size="xs">LAST CONTROLLER CHECK</Text><Text bold>{formatDate(data?.controller?.now_utc)}</Text></div>
           </div>
         </section>
