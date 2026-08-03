@@ -1,18 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Pulse,
   ArrowClockwise,
+  ArrowRight,
+  ArrowUpRight,
+  CalendarBlank,
+  ChartLine,
   CheckCircle,
-  Clock,
+  ClockCountdown,
   CloudArrowUp,
   Database,
   DownloadSimple,
+  FileXls,
   GithubLogo,
-  PlayCircle,
+  Info,
+  Lightning,
+  Pulse,
+  ShieldCheck,
+  SlidersHorizontal,
+  Timer,
   WarningCircle,
 } from "@phosphor-icons/react";
-import { Badge, Button, Input, LayerCard, Switch, Text } from "@cloudflare/kumo";
+import { Badge, Button, Input, LayerCard, Switch } from "@cloudflare/kumo";
 import "@cloudflare/kumo/styles/standalone";
 import "./styles.css";
 
@@ -27,6 +36,21 @@ const FALLBACK_CONFIG = {
   full_validation: false,
 };
 
+const FALLBACK_SPORTS = [
+  { id: "wnba_2026", label: "WNBA 2026" },
+  { id: "nfl_2025", label: "NFL 2025" },
+];
+
+const PIPELINE_STEPS = [
+  ["Refresh event metadata", "Gamma event list"],
+  ["Fetch and persist trades", "Parquet bronze layer"],
+  ["Rebuild local DuckDB", "Silver analytical layer"],
+  ["Recalculate bettor analysis", "Wallet/game ledgers"],
+  ["Export Excel workbook", "Downloadable report"],
+  ["Validate the refreshed snapshot", "Local + external checks"],
+  ["Commit and push updated artifacts", "GitHub publication"],
+];
+
 function apiUrl(path) {
   return `${API_BASE}${path}`;
 }
@@ -37,9 +61,7 @@ async function request(path, options = {}) {
     ...options,
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.error || `Request failed (${response.status})`);
-  }
+  if (!response.ok) throw new Error(body.error || `Request failed (${response.status})`);
   return body;
 }
 
@@ -69,53 +91,75 @@ function badgeVariant(status) {
   return "warning";
 }
 
-function Metric({ label, value, detail, icon: Icon, tone = "neutral" }) {
+function buildRawUrl(repository, branch, path) {
+  if (!repository || !branch) return null;
+  return `https://github.com/${repository}/raw/refs/heads/${encodeURIComponent(branch).replace(/%2F/g, "/")}/${path}`;
+}
+
+function Kicker({ children }) {
+  return <span className="kicker">{children}</span>;
+}
+
+function StatusBadge({ status, children }) {
+  return <Badge variant={badgeVariant(status)} appearance="dot">{children}</Badge>;
+}
+
+function MetricCard({ label, value, detail, icon: Icon, tone = "neutral" }) {
   return (
-    <div className={`metric metric-${tone}`}>
-      <div className="metric-icon"><Icon size={18} weight="bold" /></div>
-      <div className="metric-copy">
-        <Text variant="secondary" size="sm">{label}</Text>
-        <Text variant="heading3" as="p">{value}</Text>
-        {detail && <Text variant="secondary" size="xs">{detail}</Text>}
+    <article className={`metric-card metric-${tone}`}>
+      <div className="metric-icon"><Icon size={19} weight="bold" /></div>
+      <div className="metric-content">
+        <span className="metric-label">{label}</span>
+        <strong className="metric-value">{value}</strong>
+        <span className="metric-detail">{detail}</span>
       </div>
-    </div>
+    </article>
   );
 }
 
-function SectionHeading({ eyebrow, title, children }) {
+function PanelHeader({ kicker, title, description, icon: Icon, children }) {
   return (
-    <div className="section-heading">
-      <div>
-        {eyebrow && <Text variant="secondary" size="xs" className="eyebrow">{eyebrow}</Text>}
-        <Text variant="heading2" as="h2">{title}</Text>
+    <div className="panel-header">
+      <div className="panel-heading-copy">
+        <div className="panel-title-row">
+          {Icon && <span className="panel-title-icon"><Icon size={18} weight="bold" /></span>}
+          <Kicker>{kicker}</Kicker>
+        </div>
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
       </div>
       {children}
     </div>
   );
 }
 
-function PipelineSteps({ runtime }) {
-  const steps = [
-    ["Refresh event metadata", "Gamma event list"],
-    ["Fetch and persist trades", "Parquet bronze layer"],
-    ["Rebuild local DuckDB", "Silver analytical layer"],
-    ["Recalculate bettor analysis", "Wallet/game ledgers"],
-    ["Export Excel workbook", "Downloadable report"],
-    ["Validate the refreshed snapshot", "Local + optional external checks"],
-    ["Commit and push updated artifacts", "GitHub publication"],
-  ];
-  const active = runtime?.current_step;
-  const last = runtime?.last_run;
-  const isRunning = runtime?.running;
+function ModeOption({ active, icon: Icon, title, description, badge, onClick }) {
   return (
-    <div className="pipeline-list">
-      {steps.map(([name, detail]) => {
-        const isActive = isRunning && active === name;
-        const isComplete = !isRunning && last?.status === "success";
+    <button type="button" className={`mode-option ${active ? "is-selected" : ""}`} aria-pressed={active} onClick={onClick}>
+      <span className="mode-option-icon"><Icon size={19} weight="bold" /></span>
+      <span className="mode-option-copy">
+        <span className="mode-option-title">{title}{badge && <Badge variant="success">{badge}</Badge>}</span>
+        <span className="mode-option-description">{description}</span>
+      </span>
+      <span className="mode-radio" aria-hidden="true"><span /></span>
+    </button>
+  );
+}
+
+function PipelineSteps({ runtime }) {
+  const activeIndex = PIPELINE_STEPS.findIndex(([name]) => name === runtime?.current_step);
+  const isRunning = Boolean(runtime?.running);
+  const isComplete = !isRunning && runtime?.last_run?.status === "success";
+
+  return (
+    <div className="pipeline-list" aria-label="Refresh pipeline progress">
+      {PIPELINE_STEPS.map(([name, detail], index) => {
+        const active = isRunning && index === activeIndex;
+        const complete = isComplete || (isRunning && activeIndex > -1 && index < activeIndex);
         return (
-          <div className={`pipeline-step ${isActive ? "is-active" : ""} ${isComplete ? "is-complete" : ""}`} key={name}>
-            <span className="pipeline-dot">
-              {isActive ? <ArrowClockwise className="spin" size={15} /> : isComplete ? <CheckCircle size={15} /> : <span />}
+          <div className={`pipeline-step ${active ? "is-active" : ""} ${complete ? "is-complete" : ""}`} key={name}>
+            <span className="pipeline-marker">
+              {active ? <ArrowClockwise className="spin" size={14} /> : complete ? <CheckCircle size={15} /> : <span />}
             </span>
             <span className="pipeline-copy"><strong>{name}</strong><small>{detail}</small></span>
           </div>
@@ -155,12 +199,22 @@ function App() {
     };
   }, [data?.runtime?.running, formDirty]);
 
+  const sports = data?.sports?.length ? data.sports : FALLBACK_SPORTS;
   const selected = useMemo(
-    () => data?.sports?.find((sport) => sport.id === form.sport) || data?.sports?.[0],
-    [data, form.sport],
+    () => sports.find((sport) => sport.id === form.sport) || sports[0],
+    [sports, form.sport],
   );
   const runtime = data?.runtime || {};
   const lastRun = runtime.last_run;
+  const lastRunForSelected = lastRun?.sport === selected?.id ? lastRun : null;
+  const validation = selected?.validation || {};
+  const counts = selected?.counts || {};
+  const downloadUrl = selected?.workbook?.download_url;
+  const validationUrl = buildRawUrl(data?.project?.repository, data?.project?.branch, `reports/${selected?.id}_validation.json`);
+  const controllerStatus = error ? "offline" : runtime.running ? "running" : "online";
+  const qualityStatus = validation.fail > 0 ? "failed" : validation.not_run > 0 ? "partial" : validation.pass > 0 ? "passed" : "unknown";
+  const qualityLabel = qualityStatus === "failed" ? "Needs attention" : qualityStatus === "partial" ? "Partially checked" : qualityStatus === "passed" ? "All checks passed" : "No report yet";
+  const externalStatus = validation.not_run > 0 ? "Partial" : validation.fail > 0 ? "Failed" : validation.pass > 0 ? "Passed" : "Not available";
 
   function setField(name, value) {
     setForm((current) => ({ ...current, [name]: value }));
@@ -176,8 +230,7 @@ function App() {
       setFormDirty(false);
       setNotice(response.config.enabled ? "Schedule saved. The next run is queued." : "Schedule paused.");
       setError("");
-      const refreshed = await request("/api/status");
-      setData(refreshed);
+      setData(await request("/api/status"));
     } catch (cause) {
       setError(cause.message || "Could not save the schedule.");
     } finally {
@@ -192,11 +245,9 @@ function App() {
         method: "POST",
         body: JSON.stringify({ sport: form.sport, full_validation: form.full_validation }),
       });
-      setNotice(`${selected?.label || "Refresh"} started. This page will update as each step completes.`);
+      setNotice(`${selected?.label || "Refresh"} started${response.run_id ? ` · run ${response.run_id}` : ""}.`);
       setError("");
-      const refreshed = await request("/api/status");
-      setData(refreshed);
-      if (response.run_id) setNotice(`${selected?.label || "Refresh"} started · run ${response.run_id}.`);
+      setData(await request("/api/status"));
     } catch (cause) {
       setError(cause.message || "Could not start the refresh.");
     } finally {
@@ -204,149 +255,173 @@ function App() {
     }
   }
 
-  const controllerStatus = error ? "offline" : runtime.running ? "running" : "online";
-  const validation = selected?.validation || {};
-  const counts = selected?.counts || {};
-  const downloadUrl = selected?.workbook?.download_url;
-
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark"><span /></div>
-          <div><strong>Polymarket Analytics</strong><small>Data control panel</small></div>
-        </div>
-        <div className="topbar-meta">
-          {data?.project?.repository && <span className="repo-label"><GithubLogo size={16} /> {data.project.repository}</span>}
-          <Badge variant={badgeVariant(controllerStatus)} appearance="dot">
-            {controllerStatus === "offline" ? "Controller offline" : controllerStatus === "running" ? "Refresh running" : "Controller online"}
-          </Badge>
+        <div className="topbar-inner">
+          <div className="brand-lockup">
+            <div className="brand-mark"><span /></div>
+            <div><strong>Polymarket Analytics</strong><small>Operations control center</small></div>
+          </div>
+          <div className="topbar-actions">
+            {data?.project?.repository && (
+              <a className="repo-link" href={`https://github.com/${data.project.repository}`} target="_blank" rel="noreferrer">
+                <GithubLogo size={16} /><span>{data.project.repository}</span><ArrowUpRight size={13} />
+              </a>
+            )}
+            <StatusBadge status={controllerStatus}>
+              {controllerStatus === "offline" ? "Controller offline" : controllerStatus === "running" ? "Refresh running" : "Controller online"}
+            </StatusBadge>
+          </div>
         </div>
       </header>
 
       <main className="page-wrap">
-        <section className="hero-row">
+        <section className="page-heading">
           <div>
-            <Text variant="secondary" size="sm" className="eyebrow">CACHE-FIRST OPERATIONS</Text>
-            <Text variant="heading1" as="h1">Refresh the sports data, then get the workbook.</Text>
-            <Text variant="secondary" size="lg" className="hero-copy">
-              Choose a dataset, run the full local pipeline, schedule future refreshes, and publish the latest Excel artifact to GitHub.
-            </Text>
+            <Kicker>DATA OPERATIONS</Kicker>
+            <h1>Refresh, verify, publish.</h1>
+            <p className="page-lede">Run the sports pipeline from one place. The system saves the API snapshot locally, rebuilds the analysis, validates the result, and can publish the workbook to GitHub.</p>
           </div>
-          <div className="hero-status">
-            <div className="status-orb"><Pulse size={24} weight="bold" /></div>
-            <div><Text variant="secondary" size="xs">LAST CONTROLLER CHECK</Text><Text bold>{formatDate(data?.controller?.now_utc)}</Text></div>
+          <div className="last-check-card">
+            <span className="last-check-icon"><Pulse size={19} weight="bold" /></span>
+            <span><small>Last controller check</small><strong>{formatDate(data?.controller?.now_utc)}</strong></span>
           </div>
         </section>
 
-        {error && <div className="alert alert-error"><WarningCircle size={19} /><span>{error}</span></div>}
-        {notice && <div className="alert alert-success"><CheckCircle size={19} /><span>{notice}</span></div>}
-
-        <section className="metrics-grid" aria-label="Selected dataset metrics">
-          <Metric label="Selected dataset" value={selected?.label || "—"} detail="Full-time moneyline scope" icon={Database} tone="orange" />
-          <Metric label="Markets" value={formatNumber(counts.markets)} detail={`${formatNumber(counts.resolved_markets)} resolved`} icon={Pulse} />
-          <Metric label="Trade rows" value={formatNumber(counts.trade_rows)} detail={`${formatNumber(counts.bettors)} wallets`} icon={CloudArrowUp} />
-          <Metric label="Candidates" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ games / 70% win rate" icon={CheckCircle} tone="green" />
+        <section className="dataset-bar" aria-label="Active dataset">
+          <div className="dataset-bar-title"><span className="dataset-bar-icon"><Database size={18} weight="bold" /></span><span><small>ACTIVE DATASET</small><strong>{selected?.label || "—"}</strong></span></div>
+          <span className="dataset-scope">Full-time moneyline</span>
+          <div className="dataset-meta"><span><small>Snapshot</small><strong>{formatDate(selected?.generated_at_utc)}</strong></span><span><small>Branch</small><strong>{data?.project?.branch || "—"}</strong></span></div>
         </section>
 
-        <section className="content-grid">
-          <LayerCard className="panel panel-main">
-            <SectionHeading eyebrow="MANUAL REFRESH" title="Run a data update">
-              {runtime.running && <Badge variant="info" appearance="dot">Working now</Badge>}
-            </SectionHeading>
-            <div className="form-grid">
-              <label className="native-field field-wide">
-                <span>Dataset</span>
-                <select value={form.sport} onChange={(event) => setField("sport", event.target.value)} disabled={runtime.running}>
-                  {(data?.sports || [{ id: "wnba_2026", label: "WNBA 2026" }, { id: "nfl_2025", label: "NFL 2025" }]).map((sport) => (
-                    <option key={sport.id} value={sport.id}>{sport.label}</option>
-                  ))}
-                </select>
-                <small>Only full-game moneyline markets are collected.</small>
-              </label>
-              <label className="native-field">
-                <span>Validation mode</span>
-                <select value={form.full_validation ? "full" : "local"} onChange={(event) => setField("full_validation", event.target.value === "full")} disabled={runtime.running}>
-                  <option value="local">Local checks (fast)</option>
-                  <option value="full">Full external checks</option>
-                </select>
-                <small>External mode also spot-checks Gamma, CLOB, ESPN, and Polygon.</small>
-              </label>
+        {error && <div className="alert alert-error" role="alert"><WarningCircle size={19} /><span>{error}</span></div>}
+        {notice && <div className="alert alert-success" role="status"><CheckCircle size={19} /><span>{notice}</span></div>}
+
+        <section className="metrics-grid" aria-label="Dataset overview">
+          <MetricCard label="Markets" value={formatNumber(counts.markets)} detail={`${formatNumber(counts.resolved_markets)} resolved`} icon={Database} tone="orange" />
+          <MetricCard label="Canonical trades" value={formatNumber(counts.trade_rows)} detail="Deduplicated analytical rows" icon={CloudArrowUp} tone="blue" />
+          <MetricCard label="Wallets" value={formatNumber(counts.bettors)} detail="Wallets with trades" icon={ChartLine} tone="violet" />
+          <MetricCard label="Candidates" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ games · 70% win rate" icon={CheckCircle} tone="green" />
+        </section>
+
+        <section className="primary-grid">
+          <LayerCard className="panel update-panel">
+            <PanelHeader
+              kicker="PRIMARY ACTION · 1 / 3"
+              title="Run a data update"
+              description="Choose the dataset and verification depth, then start the cache-first refresh."
+              icon={Lightning}
+            >
+              {runtime.running && <StatusBadge status="running">Working now</StatusBadge>}
+            </PanelHeader>
+
+            <div className="field-block">
+              <label className="field-label" htmlFor="dataset-select">Dataset</label>
+              <select id="dataset-select" className="native-select" value={form.sport} onChange={(event) => setField("sport", event.target.value)} disabled={runtime.running}>
+                {sports.map((sport) => <option key={sport.id} value={sport.id}>{sport.label}</option>)}
+              </select>
+              <span className="field-helper">Only full-game moneyline markets are collected.</span>
             </div>
-            <div className="action-row">
-              <Button variant="primary" size="lg" onClick={runNow} loading={starting || runtime.running} disabled={starting || runtime.running}>
-                <PlayCircle size={19} weight="bold" /> Update now
+
+            <div className="field-block validation-block">
+              <div className="field-label">Verification depth</div>
+              <div className="mode-grid">
+                <ModeOption
+                  active={!form.full_validation}
+                  icon={Timer}
+                  title="Local checks"
+                  description="Fast checks across Parquet, DuckDB, analysis, and Excel."
+                  badge="Routine"
+                  onClick={() => !runtime.running && setField("full_validation", false)}
+                />
+                <ModeOption
+                  active={Boolean(form.full_validation)}
+                  icon={ShieldCheck}
+                  title="Full external checks"
+                  description="Adds Gamma, CLOB, ESPN, and Polygon comparisons."
+                  badge="Before publish"
+                  onClick={() => !runtime.running && setField("full_validation", true)}
+                />
+              </div>
+              <div className="info-callout"><Info size={16} weight="bold" /><span><strong>Both modes fetch the same trades.</strong> Full checks only add a slower, broader quality review afterward.</span></div>
+            </div>
+
+            <div className="update-action-row">
+              <Button type="button" variant="primary" size="lg" onClick={runNow} loading={starting || runtime.running} disabled={starting || runtime.running}>
+                <ArrowRight size={18} weight="bold" /> Update {selected?.label || "dataset"}
               </Button>
-              <Text variant="secondary" size="sm">The existing cache is reused for settled markets; open markets are refreshed.</Text>
+              <span className="action-helper"><ArrowClockwise size={14} /> Settled markets use the local cache; open markets refresh.</span>
             </div>
-            <div className="subsection-heading"><Text variant="heading3" as="h3">Pipeline progress</Text><Text variant="secondary" size="sm">{runtime.running ? runtime.current_step || "Starting…" : lastRun?.status === "success" ? "Ready" : "Waiting for a run"}</Text></div>
-            <PipelineSteps runtime={runtime} />
+
+            <div className="pipeline-heading">
+              <div><Kicker>LIVE PIPELINE</Kicker><h3>{runtime.running ? runtime.current_step || "Starting refresh…" : lastRunForSelected?.status === "success" ? "Ready for the next update" : "Waiting for an update"}</h3></div>
+              <span className={`pipeline-state ${runtime.running ? "running" : lastRunForSelected?.status === "success" ? "success" : lastRunForSelected?.status === "failed" ? "failed" : ""}`}>{runtime.running ? "In progress" : lastRunForSelected?.status === "success" ? "Complete" : lastRunForSelected?.status === "failed" ? "Needs attention" : "Idle"}</span>
+            </div>
+            <PipelineSteps runtime={{ ...runtime, last_run: lastRunForSelected }} />
           </LayerCard>
 
-          <LayerCard className="panel panel-side">
-            <SectionHeading eyebrow="AUTOMATION" title="Schedule refreshes">
-              <Clock size={22} className="section-icon" />
-            </SectionHeading>
-            <div className="switch-row">
-              <div><Text bold>Scheduler</Text><Text variant="secondary" size="sm">Runs while the controller process is online.</Text></div>
-              <Switch checked={Boolean(form.enabled)} onClick={() => setField("enabled", !form.enabled)} aria-label="Enable scheduler" />
-            </div>
-            <div className="schedule-fields">
-              <Input label="Repeat every" type="number" min="1" max="10080" value={form.interval_value} onChange={(event) => setField("interval_value", event.target.value)} disabled={!form.enabled} />
-              <label className="native-field unit-field"><span>Unit</span><select value={form.interval_unit} onChange={(event) => setField("interval_unit", event.target.value)} disabled={!form.enabled}><option value="minutes">minutes</option><option value="hours">hours</option></select></label>
-            </div>
-            <div className="switch-row compact">
-              <div><Text bold>Auto-push to GitHub</Text><Text variant="secondary" size="sm">Commit the report, validation JSON, and workbook.</Text></div>
-              <Switch checked={Boolean(form.auto_push)} onClick={() => setField("auto_push", !form.auto_push)} aria-label="Enable auto-push" />
-            </div>
-            <Button variant="secondary" className="save-button" onClick={saveSchedule} loading={saving} disabled={saving || !formDirty}>
-              Save schedule
-            </Button>
-            <div className="next-run-box"><Text variant="secondary" size="xs">NEXT RUN</Text><Text bold>{form.enabled ? formatDate(runtime.next_run_at) : "Scheduler paused"}</Text></div>
-          </LayerCard>
+          <div className="side-stack">
+            <LayerCard className="panel schedule-panel">
+              <PanelHeader kicker="AUTOMATION · 2 / 3" title="Schedule refreshes" description="Keep the controller online to run scheduled updates." icon={ClockCountdown} />
+              <div className="setting-row">
+                <div><strong>Automatic refreshes</strong><span>Runs while this server is online.</span></div>
+                <Switch checked={Boolean(form.enabled)} onCheckedChange={(checked) => setField("enabled", checked)} aria-label="Enable automatic refreshes" />
+              </div>
+              <div className="schedule-fields">
+                <Input label="Run every" type="number" min="1" max="10080" value={form.interval_value} onChange={(event) => setField("interval_value", event.target.value)} disabled={!form.enabled} />
+                <label className="field-block unit-field"><span className="field-label">Unit</span><select className="native-select" value={form.interval_unit} onChange={(event) => setField("interval_unit", event.target.value)} disabled={!form.enabled}><option value="minutes">minutes</option><option value="hours">hours</option></select></label>
+              </div>
+              <div className="setting-row setting-row-borderless">
+                <div><strong>Auto-push to GitHub</strong><span>Publish the workbook and validation report.</span></div>
+                <Switch checked={Boolean(form.auto_push)} onCheckedChange={(checked) => setField("auto_push", checked)} aria-label="Enable automatic GitHub publishing" />
+              </div>
+              <Button type="button" variant="secondary" className="save-button" onClick={saveSchedule} loading={saving} disabled={saving || !formDirty}>Save automation settings</Button>
+              <div className="next-run"><CalendarBlank size={16} /><span><small>Next scheduled run</small><strong>{form.enabled ? formatDate(runtime.next_run_at) : "Scheduler paused"}</strong></span></div>
+            </LayerCard>
+
+            <LayerCard className={`panel quality-panel quality-${qualityStatus}`}>
+              <div className="quality-heading"><div><Kicker>QUALITY GATE · 3 / 3</Kicker><h2>Data confidence</h2></div><span className="quality-icon"><ShieldCheck size={20} weight="bold" /></span></div>
+              <div className="quality-score"><strong>{validation.pass ?? "—"}</strong><span>{qualityLabel}</span></div>
+              <div className="quality-list">
+                <div><span><i className="quality-dot local" />Local integrity</span><strong>{validation.fail ? `${validation.fail} failed` : validation.pass ? "Passed" : "Not available"}</strong></div>
+                <div><span><i className="quality-dot external" />External comparisons</span><strong>{externalStatus}</strong></div>
+              </div>
+              {validationUrl && <a className="text-link" href={validationUrl} target="_blank" rel="noreferrer">Open validation report <ArrowUpRight size={14} /></a>}
+            </LayerCard>
+          </div>
         </section>
 
-        <section className="content-grid lower-grid">
-          <LayerCard className="panel download-panel">
-            <SectionHeading eyebrow="LATEST ARTIFACT" title="Excel download">
-              {selected?.workbook?.exists ? <Badge variant="success">Available</Badge> : <Badge variant="warning">Not generated</Badge>}
-            </SectionHeading>
-            <div className="download-card">
-              <div className="file-icon"><DownloadSimple size={23} weight="bold" /></div>
-              <div className="file-copy"><Text bold>{selected?.workbook?.name || "Workbook will appear after the first run"}</Text><Text variant="secondary" size="sm">The public link points to the configured GitHub branch.</Text></div>
-              {downloadUrl && selected?.workbook?.exists ? <a className="download-link" href={downloadUrl} target="_blank" rel="noreferrer">Open Excel <DownloadSimple size={17} /></a> : <span className="download-disabled">Waiting</span>}
+        <section className="secondary-grid">
+          <LayerCard className="panel artifact-panel">
+            <div className="panel-header artifact-header"><div className="panel-heading-copy"><Kicker>LATEST PUBLISHED WORKBOOK</Kicker><h2>Excel download</h2></div>{selected?.workbook?.exists ? <Badge variant="success">Available</Badge> : <Badge variant="warning">Not generated</Badge>}</div>
+            <div className="artifact-main">
+              <div className="file-icon"><FileXls size={23} weight="bold" /></div>
+              <div className="artifact-copy"><strong>{selected?.workbook?.name || "Workbook will appear after the first run"}</strong><span>Generated {formatDate(selected?.generated_at_utc)} · validated before publication.</span></div>
+              {downloadUrl && selected?.workbook?.exists ? <a className="download-link" href={downloadUrl} target="_blank" rel="noreferrer">Open Excel <DownloadSimple size={16} /></a> : <span className="download-disabled">Waiting</span>}
             </div>
-            <div className="artifact-meta"><span><strong>Last generated</strong>{formatDate(selected?.generated_at_utc)}</span><span><strong>Validation</strong>{validation.fail ? `${validation.fail} failed` : `${validation.pass} passed`}</span></div>
+            <div className="artifact-footer"><span><small>Scope</small><strong>{selected?.label} · full-time moneyline</strong></span><span><small>Validation</small><strong>{validation.fail ? `${validation.fail} failed` : validation.pass ? `${validation.pass} checks passed` : "Not available"}</strong></span><span><small>Publication</small><strong>{data?.project?.branch || "—"}</strong></span></div>
           </LayerCard>
 
           <LayerCard className="panel activity-panel">
-            <SectionHeading eyebrow="RUN HISTORY" title="Latest activity" />
-            {lastRun ? (
+            <PanelHeader kicker="RECENT ACTIVITY" title="Latest run" icon={Pulse} />
+            {lastRunForSelected ? (
               <div className="activity-item">
-                <div className={`activity-status ${lastRun.status}`}><span>{lastRun.status === "success" ? <CheckCircle size={19} /> : lastRun.status === "failed" ? <WarningCircle size={19} /> : <ArrowClockwise className="spin" size={19} />}</span></div>
-                <div className="activity-copy"><div><Text bold>{lastRun.status === "success" ? `${lastRun.sport === "wnba_2026" ? "WNBA" : "NFL"} refresh complete` : `${lastRun.sport} refresh ${lastRun.status}`}</Text><Badge variant={badgeVariant(lastRun.status)}>{lastRun.status}</Badge></div><Text variant="secondary" size="sm">{formatDate(lastRun.finished_at_utc || lastRun.started_at_utc)} · {formatDuration(lastRun.duration_seconds)}</Text>{lastRun.push?.pushed && <Text variant="secondary" size="sm"><GithubLogo size={14} /> Pushed commit {String(lastRun.push.commit || "").slice(0, 7)}</Text>}{lastRun.error && <Text variant="error" size="sm">{lastRun.error}</Text>}</div>
+                <div className={`activity-status ${lastRunForSelected.status}`}><span>{lastRunForSelected.status === "success" ? <CheckCircle size={19} /> : lastRunForSelected.status === "failed" ? <WarningCircle size={19} /> : <ArrowClockwise className="spin" size={19} />}</span></div>
+                <div className="activity-copy"><div className="activity-title-row"><strong>{lastRunForSelected.status === "success" ? `${selected.label} refresh complete` : `${selected.label} refresh ${lastRunForSelected.status}`}</strong><Badge variant={badgeVariant(lastRunForSelected.status)}>{lastRunForSelected.status}</Badge></div><span>{formatDate(lastRunForSelected.finished_at_utc || lastRunForSelected.started_at_utc)} · {formatDuration(lastRunForSelected.duration_seconds)}</span>{lastRunForSelected.push?.pushed && <span><GithubLogo size={14} /> Published commit {String(lastRunForSelected.push.commit || "").slice(0, 7)}</span>}{lastRunForSelected.error && <span className="activity-error">{lastRunForSelected.error}</span>}</div>
               </div>
-            ) : (
-              <div className="empty-state"><Pulse size={26} /><Text bold>No refreshes in this controller session</Text><Text variant="secondary" size="sm">Run an update to see timing, validation, and GitHub publication details here.</Text></div>
-            )}
-            <div className="activity-footer"><Text variant="secondary" size="xs">Controller branch</Text><Text variant="mono-secondary" size="sm">{data?.project?.branch || "—"}</Text></div>
+            ) : <div className="empty-state"><Pulse size={24} /><strong>No runs for this dataset yet</strong><span>Start an update to see the pipeline result here.</span></div>}
+            <div className="activity-footer"><span><small>Controller branch</small><strong>{data?.project?.branch || "—"}</strong></span><span><small>Refresh cadence</small><strong>{form.enabled ? `Every ${form.interval_value} ${form.interval_unit}` : "Manual"}</strong></span></div>
           </LayerCard>
         </section>
 
-        <section className="how-it-works">
-          <div className="how-heading"><Text variant="heading3" as="h2">How the update works</Text><Text variant="secondary" size="sm">A simple six-step loop with local files at every important stage.</Text></div>
-          <div className="how-grid">
-            <div><span>01</span><strong>API snapshot</strong><small>Gamma metadata is cached locally.</small></div>
-            <div><span>02</span><strong>Parquet bronze</strong><small>Trades are stored as columnar files.</small></div>
-            <div><span>03</span><strong>DuckDB silver</strong><small>Wallet/game ledgers are rebuilt locally.</small></div>
-            <div><span>04</span><strong>Excel + report</strong><small>Analysis is exported for review.</small></div>
-            <div><span>05</span><strong>Validation</strong><small>Counts and accounting are checked.</small></div>
-            <div><span>06</span><strong>GitHub link</strong><small>The published workbook URL stays visible.</small></div>
-          </div>
+        <section className="workflow-strip">
+          <div className="workflow-intro"><span className="workflow-icon"><SlidersHorizontal size={19} weight="bold" /></span><div><Kicker>WHAT HAPPENS NEXT</Kicker><h2>One update, six hand-offs</h2><p>Every step leaves a local artifact so the result can be inspected and reproduced.</p></div></div>
+          <div className="workflow-steps"><span><b>01</b>API snapshot</span><span><b>02</b>Parquet trades</span><span><b>03</b>DuckDB ledger</span><span><b>04</b>Excel + GitHub</span></div>
         </section>
       </main>
 
-      <footer className="footer"><span>Local admin panel · binds to localhost by default</span><span>Cloudflare Kumo UI · Parquet + DuckDB ETL</span></footer>
+      <footer className="footer"><span>Local-first ETL · Parquet + DuckDB</span><span>Cloudflare Kumo UI · Public HTTPS control panel</span></footer>
     </div>
   );
 }
