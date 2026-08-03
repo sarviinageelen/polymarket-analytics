@@ -72,7 +72,16 @@ authenticated reverse proxy. It can be bound to another interface with
 
 This is intentionally a local admin panel rather than a public data runner.
 The ETL writes local Parquet/DuckDB state and uses the host's Git credentials;
-deploying only the browser page to a public site would not be able to perform
-those operations safely. The frontend is kept separate in `web/`, uses Kumo,
-and can later be connected to an authenticated Cloudflare Worker/ tunnel if a
-shared remote control plane is desired.
+the Python controller therefore remains bound to `127.0.0.1`.
+
+On the configured server, Caddy provides the authenticated public HTTPS edge:
+
+<https://76.13.189.147.sslip.io>
+
+The edge uses automatic TLS and HTTP Basic Authentication (`admin`). The
+password is intentionally kept out of Git and must be supplied separately to
+authorized users. If the server's public IP changes, update the hostname in
+the Caddy configuration and restart Caddy; `sslip.io` derives DNS from the IP.
+
+The frontend is kept separate in `web/`, uses Kumo, and can later be moved to
+an authenticated Cloudflare Worker if a shared remote control plane is needed.
