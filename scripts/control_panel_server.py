@@ -129,6 +129,16 @@ def parse_output_metrics(output: str) -> dict[str, Any] | None:
     return None
 
 
+def summarize_run_metrics(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """Flatten step-emitted metrics into a safe run-level summary."""
+
+    by_step = {str(step.get("name")): step.get("metrics", {}) for step in steps if step.get("metrics")}
+    validation = by_step.get("Validate the refreshed snapshot") or {}
+    total_checks = sum(int(validation.get(key, 0) or 0) for key in ("pass", "warning", "fail", "not_run"))
+    score = f"{validation.get('pass', 0)} / {total_checks}" if total_checks else None
+    return {"by_step": by_step, "validation": validation, "validation_score": score}
+
+
 def run_command(command: list[str], *, capture: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
@@ -673,6 +683,7 @@ class ControlPanel:
                 self._run_event(run_id, "Published generated artifacts", step="Commit and push updated artifacts", commit=pushed.get("commit"))
 
             finished = utc_now()
+            run_metrics = summarize_run_metrics(steps)
             last_run = {
                 "id": run_id,
                 "sport": sport,
@@ -686,6 +697,7 @@ class ControlPanel:
                 "download_url": public_download_url(sport, self.config.get("push_branch")),
                 "output_tail": output_tail,
                 "steps": steps,
+                "metrics": run_metrics,
             }
             self._run_event(run_id, "Refresh complete", step="Complete")
             self._finish_run(last_run)
@@ -707,6 +719,7 @@ class ControlPanel:
                     "error": error,
                     "output_tail": output_tail,
                     "steps": steps,
+                    "metrics": summarize_run_metrics(steps),
                     "download_url": public_download_url(sport, self.config.get("push_branch")),
                 }
             )
@@ -729,6 +742,7 @@ class ControlPanel:
                     "error": error,
                     "output_tail": output_tail,
                     "steps": steps,
+                    "metrics": summarize_run_metrics(steps),
                     "download_url": public_download_url(sport, self.config.get("push_branch")),
                 }
             )
@@ -807,6 +821,11 @@ class ControlPanel:
         if not run:
             raise ValueError(f"run not found: {run_id}")
         run["logs"] = self._run_log_events(run_id, level=level, step=step, search=search)
+        if not run["logs"] and not any((level, step, search)):
+            run["logs"] = [
+                {"timestamp_utc": run.get("finished_at_utc") or run.get("started_at_utc"), "level": "info", "step": None, "message": line}
+                for line in run.get("output_tail", [])
+            ]
         return run
 
     def retry_run(self, run_id: str) -> dict[str, Any]:
@@ -833,6 +852,12 @@ class ControlPanel:
 
     def run_log_text(self, run_id: str, *, plain: bool = False, **filters: Any) -> str:
         events = self._run_log_events(run_id, **filters)
+        if not events and not any(filters.values()):
+            run = self.find_run(run_id) or {}
+            events = [
+                {"timestamp_utc": run.get("finished_at_utc") or run.get("started_at_utc"), "level": "info", "step": None, "message": line}
+                for line in run.get("output_tail", [])
+            ]
         if plain:
             return "\n".join(
                 f"{event.get('timestamp_utc', '')} [{event.get('level', 'info')}] {event.get('step') or ''} {event.get('message', '')}".strip()

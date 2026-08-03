@@ -15,6 +15,7 @@ The workbook is reproducible from the cached Parquet and CSV outputs:
 - WNBA analysis: [wnba_2026_moneyline.md](wnba_2026_moneyline.md)
 - WNBA validation evidence: [wnba_2026_validation.json](wnba_2026_validation.json)
 - WNBA workbook: generated/wnba_2026_moneyline_picks.xlsx
+- NFL validation evidence: [nfl_2025_validation.json](nfl_2025_validation.json)
 
 ```bash
 PYTHONPATH=/usr/lib/python3/dist-packages \

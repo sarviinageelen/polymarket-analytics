@@ -535,6 +535,9 @@ def trader_detail(db_path: Path, wallet: str, *, limit: int = 50) -> dict[str, A
     try:
         market_cte, _ = _market_cte(conn)
         expressions = _ledger_expressions(conn)
+        ledger_columns = _column_names(conn, "wallet_game_ledger")
+        net_shares_a = "l.net_shares_a" if "net_shares_a" in ledger_columns else "0.0"
+        net_shares_b = "l.net_shares_b" if "net_shares_b" in ledger_columns else "0.0"
         rows = _rows(
             conn.execute(
                 f"""
@@ -544,6 +547,7 @@ def trader_detail(db_path: Path, wallet: str, *, limit: int = 50) -> dict[str, A
                        {expressions['result']} AS result,
                        COALESCE({expressions['pnl']}, 0.0) AS pnl,
                        COALESCE({expressions['buy_cost']}, 0.0) AS buy_cost,
+                       {net_shares_a} AS net_shares_a, {net_shares_b} AS net_shares_b,
                        l.trade_count, l.first_trade_timestamp, l.last_trade_timestamp,
                        l.name, l.pseudonym
                 FROM wallet_game_ledger l
@@ -592,7 +596,7 @@ def trader_detail(db_path: Path, wallet: str, *, limit: int = 50) -> dict[str, A
             "roi_pct": round(total_pnl / buy_cost * 100, 2) if buy_cost else None,
             "recent_picks": rows,
             "trend": trend,
-            "by_team": _group_rows(rows, "team_a"),
+            "by_team": _group_team_rows(rows),
             "by_market_type": _group_rows(rows, "market_type"),
             "methodology": "Timeline uses wallet × game ledgers from the local DuckDB snapshot; unresolved rows remain visible but do not count toward accuracy.",
         }
@@ -605,6 +609,37 @@ def _group_rows(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
     for row in rows:
         value = row.get(key) or "Unknown"
         item = grouped.setdefault(value, {"label": value, "picks": 0, "wins": 0, "losses": 0, "pnl": 0.0})
+        if row.get("result") in {"win", "loss"}:
+            item["picks"] += 1
+            item["wins"] += row.get("result") == "win"
+            item["losses"] += row.get("result") == "loss"
+        item["pnl"] += float(row.get("pnl") or 0)
+    for item in grouped.values():
+        item["accuracy_pct"] = round(item["wins"] / item["picks"] * 100, 2) if item["picks"] else None
+    return sorted(grouped.values(), key=lambda item: item["pnl"], reverse=True)
+
+
+def _group_team_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Count performance only for single-sided net positions by team.
+
+    A matchup contains two teams, but a wallet's realized result cannot be
+    attributed to both teams at once.  Hedged and flat ledgers are therefore
+    intentionally omitted from this breakdown.
+    """
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        net_a = float(row.get("net_shares_a") or 0.0)
+        net_b = float(row.get("net_shares_b") or 0.0)
+        if net_a > 1e-9 and net_b <= 1e-9:
+            team = row.get("team_a")
+        elif net_b > 1e-9 and net_a <= 1e-9:
+            team = row.get("team_b")
+        else:
+            team = None
+        if not team:
+            continue
+        item = grouped.setdefault(team, {"label": team, "picks": 0, "wins": 0, "losses": 0, "pnl": 0.0})
         if row.get("result") in {"win", "loss"}:
             item["picks"] += 1
             item["wins"] += row.get("result") == "win"

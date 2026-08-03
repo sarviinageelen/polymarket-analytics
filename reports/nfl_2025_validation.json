@@ -1,37 +1,34 @@
 {
-  "generated_at_utc": "2026-08-03T14:10:27.310482+00:00",
+  "generated_at_utc": "2026-08-03T14:10:50.601563+00:00",
   "local": {
     "manifest": {
-      "series_id": "10105",
-      "season": "WNBA 2026",
-      "start_date": "2026-05-08",
-      "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-03T13:27:47.188342+00:00",
-      "market_count": 265,
-      "trade_count": 829808,
-      "ledger_count": 102394
+      "series_id": "10187",
+      "season": "NFL 2025",
+      "start_date": "2025-09-04",
+      "end_date": "2026-02-08",
+      "generated_at_utc": "2026-08-02T11:38:10.163536+00:00",
+      "market_count": 285,
+      "trade_count": 1677376,
+      "ledger_count": 332084
     },
     "market_status_resolution_counts": {
-      "closed:resolved": 224,
-      "open:unresolved": 3,
-      "stale_unresolved:unresolved": 1,
-      "upcoming:unresolved": 37
+      "closed:resolved": 284,
+      "closed:tie": 1
     },
     "ledger_result_counts": {
-      "flat": 231,
-      "loss": 45135,
-      "unsettled": 328,
-      "win": 56700
+      "flat": 6323,
+      "loss": 154245,
+      "win": 171516
     },
-    "event_cache_events": 265,
-    "event_cache_moneyline_markets": 265
+    "event_cache_events": 285,
+    "event_cache_moneyline_markets": 285
   },
   "external": {
     "gamma_scope": {
-      "remote_events": 265,
-      "local_events": 265,
-      "remote_moneyline_markets": 265,
-      "local_moneyline_markets": 265,
+      "remote_events": 285,
+      "local_events": 285,
+      "remote_moneyline_markets": 285,
+      "local_moneyline_markets": 285,
       "missing_local_conditions": 0,
       "extra_local_conditions": 0
     }
@@ -39,13 +36,13 @@
   "onchain": {
     "samples": [
       {
-        "transaction_hash": "0xa0be203d6c074f47490284f3a57b19622ff3f6d9086dc4d836e36955b9cd73c3",
+        "transaction_hash": "0x0f4d5e9c9f2af5e9eac2d417abb1a5dace4111649b019676185cc4d05628999d",
         "endpoint": "https://polygon.drpc.org",
         "receipt_found": true,
         "status": "0x1"
       },
       {
-        "transaction_hash": "0x9ae11a650c5209de7fca4c43ef32b6076167dd120177bc3c765a555ec168b943",
+        "transaction_hash": "0x059648817b05a0fa5171cd3a5f8b4001424c746df335ed47cb15da09971158b7",
         "endpoint": "https://polygon.drpc.org",
         "receipt_found": true,
         "status": "0x1"
@@ -58,9 +55,9 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "events": 265,
-        "moneyline_markets": 265,
-        "db_markets": 265,
+        "events": 285,
+        "moneyline_markets": 285,
+        "db_markets": 285,
         "duplicate_event_ids": 0,
         "duplicate_condition_ids": 0
       }
@@ -70,11 +67,11 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "manifest_market_count": 265,
-        "db_market_count": 265,
+        "manifest_market_count": 285,
+        "db_market_count": 285,
         "manifest_failures": 0,
-        "manifest_condition_ids": 265,
-        "db_condition_ids": 265
+        "manifest_condition_ids": 285,
+        "db_condition_ids": 285
       }
     },
     {
@@ -82,11 +79,11 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_unique_trades": 829808,
-        "parquet_raw_trades": 835971,
-        "parquet_unique_trades": 829808,
-        "duckdb_trades": 829808,
-        "refresh_duplicate_rows": 6163
+        "manifest_unique_trades": 1677376,
+        "parquet_raw_trades": 1677376,
+        "parquet_unique_trades": 1677376,
+        "duckdb_trades": 1677376,
+        "refresh_duplicate_rows": 0
       }
     },
     {
@@ -121,7 +118,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 102394
+        "ledger_rows": 332084
       }
     },
     {
@@ -152,7 +149,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-03T14:10:11.105096+00:00"
+        "capture_time_utc": "2026-08-03T14:10:17.722287+00:00"
       }
     },
     {
@@ -160,7 +157,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 1.1641532182693481e-10,
+        "max_cash_flow_residual": 1.234002411365509e-08,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
@@ -171,10 +168,10 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "5_game_csv": 349,
-        "5_game_query": 349,
-        "10_game_csv": 214,
-        "10_game_query": 214
+        "5_game_csv": 713,
+        "5_game_query": 713,
+        "10_game_csv": 374,
+        "10_game_query": 374
       }
     },
     {
@@ -182,8 +179,8 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "manifest_results": 265,
-        "db_markets": 265,
+        "manifest_results": 285,
+        "db_markets": 285,
         "missing_in_db": 0
       }
     },
@@ -203,8 +200,8 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 28413,
-        "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
+        "hyperlinks_to_profiles": 53417,
+        "sample_profile_url": "https://polymarket.com/profile/0xa9878e59934ab507f9039bcb917c1bae0451141d",
         "table_counts": {
           "Read Me": 0,
           "Games": 1,
@@ -217,8 +214,8 @@
           "Bettor Summary (5+)": 1
         },
         "worksheet_filter_refs": {
-          "Picks Matrix (10+)": "A7:JL221",
-          "Picks Matrix (5+)": "A7:JL356"
+          "Picks Matrix (10+)": "A7:KF381",
+          "Picks Matrix (5+)": "A7:KF720"
         }
       }
     },
@@ -247,10 +244,10 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "remote_events": 265,
-        "local_events": 265,
-        "remote_moneyline_markets": 265,
-        "local_moneyline_markets": 265,
+        "remote_events": 285,
+        "local_events": 285,
+        "remote_moneyline_markets": 285,
+        "local_moneyline_markets": 285,
         "missing_local_conditions": 0,
         "extra_local_conditions": 0
       }
@@ -260,8 +257,8 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "event_id": "723974",
-        "condition_id": "0x2573dbe9ff7c36753654751e9d9efaae990e75a65f96fd6964ae883765f0cb24",
+        "event_id": "188978",
+        "condition_id": "0x204d24f3a0f5dd5fca825292bdeab6a97af3978b2caa2b21bb37e610eddfff5d",
         "local_market_closed": true,
         "remote_market_closed": true,
         "outcomes_match": true
@@ -272,7 +269,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "condition_id": "0x2573dbe9ff7c36753654751e9d9efaae990e75a65f96fd6964ae883765f0cb24",
+        "condition_id": "0x204d24f3a0f5dd5fca825292bdeab6a97af3978b2caa2b21bb37e610eddfff5d",
         "closed": true,
         "accepting_orders": false,
         "local_market_closed": true
@@ -283,32 +280,20 @@
       "status": "pass",
       "severity": "medium",
       "evidence": {
-        "event_id": "723974",
-        "local_title": "Indiana Fever vs. Minnesota Lynx",
+        "event_id": "188978",
+        "local_title": "Seattle vs. New England",
         "local_teams": [
-          "indianafever",
-          "minnesotalynx"
+          "seattle",
+          "newengland"
         ],
         "espn_teams": [
           [
-            "minnesotalynx",
-            "indianafever"
-          ],
-          [
-            "portlandfire",
-            "losangelessparks"
-          ],
-          [
-            "dallaswings",
-            "connecticutsun"
-          ],
-          [
-            "goldenstatevalkyries",
-            "torontotempo"
+            "newenglandpatriots",
+            "seattleseahawks"
           ]
         ],
-        "espn_sport": "basketball/wnba",
-        "scoreboard_date": "20260802"
+        "espn_sport": "football/nfl",
+        "scoreboard_date": "20260208"
       }
     },
     {
@@ -318,13 +303,13 @@
       "evidence": {
         "samples": [
           {
-            "transaction_hash": "0xa0be203d6c074f47490284f3a57b19622ff3f6d9086dc4d836e36955b9cd73c3",
+            "transaction_hash": "0x0f4d5e9c9f2af5e9eac2d417abb1a5dace4111649b019676185cc4d05628999d",
             "endpoint": "https://polygon.drpc.org",
             "receipt_found": true,
             "status": "0x1"
           },
           {
-            "transaction_hash": "0x9ae11a650c5209de7fca4c43ef32b6076167dd120177bc3c765a555ec168b943",
+            "transaction_hash": "0x059648817b05a0fa5171cd3a5f8b4001424c746df335ed47cb15da09971158b7",
             "endpoint": "https://polygon.drpc.org",
             "receipt_found": true,
             "status": "0x1"

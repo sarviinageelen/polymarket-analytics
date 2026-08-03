@@ -2,29 +2,29 @@
 
 ## Executive Summary
 
-- **The WNBA pipeline is running locally and is refreshable.** The snapshot contains 262 full-game moneyline markets in the regular-season window from May 8 through September 24, 2026. At capture time, 220 markets were resolved and 42 remained unresolved.
-- **The data layers reconcile.** The refreshed cache contains 817,084 unique trades, 18,115 wallets, and 101,025 wallet-game ledgers. Manifest, Parquet, DuckDB, CSV filters, and the Excel workbook agree on the key counts.
-- **The bettor filters are intentionally conservative.** The 5+ view contains 343 public wallet identifiers and the 10+ view contains 211, each requiring at least 70% settled non-flat win rate and at least $1,000 of settled BUY cost.
+- **The WNBA pipeline is running locally and is refreshable.** The snapshot contains 265 full-game moneyline markets in the regular-season window from May 8 through September 24, 2026. At capture time, 224 markets were resolved and 41 remained unresolved.
+- **The data layers reconcile.** The refreshed cache contains 829,808 unique trades, 18,268 wallets, and 102,394 wallet-game ledgers. Manifest, Parquet, DuckDB, CSV filters, and the Excel workbook agree on the key counts.
+- **The bettor filters are intentionally conservative.** The 5+ view contains 349 public wallet identifiers and the 10+ view contains 214, each requiring at least 70% settled non-flat win rate and at least $1,000 of settled BUY cost.
 - **Live and upcoming games are visible but not scored as wins or losses.** Their current positions are shown as mark-to-market exposure only. This prevents an in-progress price from being mistaken for a final result.
 
 ## Scope and snapshot
 
 This report covers Polymarket series 10105 (wnba) and keeps only nested markets where sportsMarketType == moneyline. The configured event-date window is inclusive: 2026-05-08 through 2026-09-24. May 8 is the official WNBA 2026 regular-season start; six earlier Polymarket 2026 events dated April 30–May 3 are therefore treated as preseason/out-of-scope.
 
-The API currently lists the captured games only through August 15. That is expected for an ongoing season: rerunning the metadata refresh will add later games as Polymarket publishes them.
+The API currently lists the captured games only through August 16. That is expected for an ongoing season: rerunning the metadata refresh will add later games as Polymarket publishes them.
 
 | Layer | Count |
 |---|---:|
-| Moneyline markets | 262 |
-| Resolved markets | 220 |
-| Live markets | 1 |
+| Moneyline markets | 265 |
+| Resolved markets | 224 |
+| Live markets | 0 |
 | Open markets | 3 |
 | Stale/unresolved markets | 1 |
 | Upcoming markets | 37 |
-| Unique trades | 817,084 |
-| Wallets with trades | 18,115 |
-| Wallet-game ledgers | 101,025 |
-| Unsettled wallet-game ledgers | 578 |
+| Unique trades | 829,808 |
+| Wallets with trades | 18,268 |
+| Wallet-game ledgers | 102,394 |
+| Unsettled wallet-game ledgers | 328 |
 
 ## What the bettor filters mean
 
@@ -36,7 +36,7 @@ The current top 10+ candidate by realized P&L is DLEK (0x6e82…a752c): 10 wins 
 
 ## Ongoing, upcoming, and exceptional markets
 
-The 42 unresolved markets stay in the data model but never populate realized_pnl, settlement_value, or a settled win/loss result. Open positions use the latest cached Gamma outcome prices for mark-to-market values.
+The 41 unresolved markets stay in the data model but never populate realized_pnl, settlement_value, or a settled win/loss result. Open positions use the latest cached Gamma outcome prices for mark-to-market values.
 
 One important exception is Atlanta Dream vs. Minnesota Lynx, event 436142. Gamma reports the event closed, while its moneyline remains inactive/archived and unresolved. It is labeled stale_unresolved, not a normal open market. The external schedule shows the game was played, but Polymarket’s market state has not produced a final binary settlement in this snapshot. It should be monitored and excluded from settled ranking until resolution is confirmed.
 
@@ -44,11 +44,15 @@ The workbook’s Games, Open Exposure, and Picks Ledger sheets preserve this dis
 
 ## Validation and reconciliation
 
-The reproducible validator ran 17 checks:
+The reproducible validator ran 20 checks and all 20 passed across cache scope,
+market filtering, manifest/Parquet/DuckDB counts, referential integrity,
+domains, timestamps, replay accounting, candidate filters, workbook reload,
+Excel table XML, Gamma, CLOB, ESPN, and Polygon receipt spot checks.
 
-- 16 passed across cache scope, market filtering, manifest/Parquet/DuckDB counts, referential integrity, domains, timestamps, replay accounting, candidate filters, workbook reload, Excel table XML, Gamma, CLOB, and ESPN spot checks.
-- 1 check was not run to completion: the Polygon receipt probe received HTTP 401 from the public RPC endpoint. This is an access limitation, not evidence that the sampled transactions are invalid.
-- Raw Parquet contains 820,258 rows versus 817,084 exact-key-deduplicated rows because refreshing unresolved markets appends repeated history. DuckDB deduplicates those exact source rows before replay; the mismatch is recorded rather than hidden.
+Raw Parquet contains 835,971 rows versus 829,808 exact-key-deduplicated rows
+because refreshing unresolved markets appends repeated history. DuckDB
+deduplicates those exact source rows before replay; the mismatch is recorded
+rather than hidden.
 
 See the saved [validation evidence](wnba_2026_validation.json) and rerun it with:
 

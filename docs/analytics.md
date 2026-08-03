@@ -10,7 +10,9 @@ response from silently changing a published table.
 - **Data updates** — refresh the selected dataset, inspect validation, and open
   the latest workbook.
 - **Best traders by team** — compare wallets with resolved moneyline ledgers
-  involving a selected team.
+  involving a selected team. The trader detail view separately attributes
+  single-sided positions to the team that was held; hedged and flat rows are
+  not assigned to either team.
 - **Best traders by game** — compare qualifying wallets around one matchup and
   show team-specific samples and the current net position when available.
 - **Trader trends** — inspect one wallet's recent ledger rows, rolling accuracy,
@@ -96,6 +98,9 @@ the URL so a view can be refreshed or shared without losing its context.
 - Historical public trade data does not provide a reliable universal notion of
   a trader's directional intent after reductions, hedges, and reversals. The
   panel labels the default metric as profitable-ledger accuracy for that reason.
+- Team attribution is intentionally conservative: only a positive, single-sided
+  net position is assigned to a team in the trader detail breakdown. The team
+  leaderboard itself is scoped to games involving the selected team.
 - Fees are not included in the current replay unless they are represented in
   the source fields. ROI and P&L should be read as replay estimates.
 - The panel shows descriptive trends and consensus counts. It does not imply

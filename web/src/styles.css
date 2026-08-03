@@ -65,6 +65,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .last-check-card strong { font-size: 14px; font-weight: 600; }
 
 .alert { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; padding: 13px 15px; border-radius: 9px; font-size: 14px; }
+.alert-content { min-width: 0; flex: 1; line-height: 1.45; }
 .alert-error { color: var(--red); background: var(--red-soft); box-shadow: 0 0 0 1px #ffd4d5; }
 .alert-success { color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 1px #ccebd9; }
 .alert-dismiss { margin-left: auto; }
@@ -315,6 +316,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .trend-point span.negative { background: var(--red); }
 .trend-point span.neutral { background: var(--line-strong); }
 .method-note { margin: 16px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px; padding-top: 18px; box-shadow: 0 -1px 0 var(--line); }
+.breakdown-grid h3 { margin: 0 0 11px; font-size: 16px; font-weight: 600; }
+.breakdown-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 8px 0; box-shadow: 0 1px 0 var(--line); }
+.breakdown-row span { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.breakdown-row strong { font-size: 14px; font-weight: 600; }
+.breakdown-row small { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
 .game-selector-wide { grid-column: span 2; }
 .selection-bars { display: grid; gap: 12px; margin: 16px 0 24px; }
 .selection-bar-row { display: grid; grid-template-columns: minmax(120px, 190px) minmax(130px, 1fr) 120px; align-items: center; gap: 12px; color: var(--ink-soft); font-size: 14px; }
@@ -405,6 +412,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .lookup-row { align-items: stretch; flex-direction: column; }
   .lookup-row .native-input { max-width: none; }
   .detail-heading { align-items: flex-start; flex-direction: column; }
+  .breakdown-grid { grid-template-columns: 1fr; }
   .detail-heading-actions { width: 100%; }
   .selection-bar-row { grid-template-columns: 100px minmax(70px, 1fr) 92px; gap: 8px; }
   .active-run-banner { align-items: flex-start; flex-wrap: wrap; }

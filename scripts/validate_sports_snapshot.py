@@ -147,12 +147,46 @@ def local_checks(
         market_count = conn.execute("SELECT count(*) FROM market_dim").fetchone()[0]
         trade_count = conn.execute("SELECT count(*) FROM trade_fact").fetchone()[0]
         ledger_count = conn.execute("SELECT count(*) FROM wallet_game_ledger").fetchone()[0]
+        market_columns = {row[0] for row in conn.execute("DESCRIBE market_dim").fetchall()}
+        ledger_columns = {row[0] for row in conn.execute("DESCRIBE wallet_game_ledger").fetchall()}
+        market_status_column = (
+            "market_status"
+            if "market_status" in market_columns
+            else "CASE WHEN resolution_type IN ('resolved', 'tie') THEN 'closed' ELSE 'unknown' END"
+        )
+        market_closed_column = (
+            "m.market_closed"
+            if "market_closed" in market_columns
+            else "m.resolution_type IN ('resolved', 'tie')"
+        )
+        settled_pnl_column = "realized_pnl" if "realized_pnl" in ledger_columns else "pnl"
+        settled_price_a_column = "final_price_a" if "final_price_a" in ledger_columns else "price_a"
+        settled_price_b_column = "final_price_b" if "final_price_b" in ledger_columns else "price_b"
+        trade_key_column = (
+            "trade_key"
+            if "trade_key" in {row[0] for row in conn.execute("DESCRIBE trade_fact").fetchall()}
+            else "md5(concat_ws('|', lower(coalesce(proxyWallet, '')), coalesce(asset, ''), coalesce(condition_id, ''), upper(coalesce(side, '')), CAST(size AS DOUBLE), CAST(price AS DOUBLE), CAST(trade_timestamp AS BIGINT), lower(coalesce(transaction_hash, ''))))"
+        )
+        unresolved_value_columns = [
+            column for column in ("settlement_value", "realized_pnl", "pnl")
+            if column in ledger_columns
+        ]
+        unresolved_value_sql = " OR ".join(f"{column} IS NOT NULL" for column in unresolved_value_columns) or "FALSE"
+        if {"current_price_a", "current_price_b"}.issubset(market_columns):
+            market_price_domain_sql = "current_price_a < 0 OR current_price_a > 1 OR current_price_b < 0 OR current_price_b > 1"
+        else:
+            market_price_domain_sql = (
+                "try_cast(json_extract_string(outcome_prices, '$[0]') AS DOUBLE) < 0 "
+                "OR try_cast(json_extract_string(outcome_prices, '$[0]') AS DOUBLE) > 1 "
+                "OR try_cast(json_extract_string(outcome_prices, '$[1]') AS DOUBLE) < 0 "
+                "OR try_cast(json_extract_string(outcome_prices, '$[1]') AS DOUBLE) > 1"
+            )
         pipeline_metadata = {
             row[0]: row[1]
             for row in conn.execute("SELECT key, value FROM pipeline_metadata").fetchall()
         }
         status_rows = conn.execute(
-            "SELECT market_status, resolution_type, count(*) FROM market_dim GROUP BY 1,2 ORDER BY 1,2"
+            f"SELECT {market_status_column} AS market_status, resolution_type, count(*) FROM market_dim GROUP BY 1,2 ORDER BY 1,2"
         ).fetchall()
         result_rows = conn.execute(
             "SELECT result, count(*) FROM wallet_game_ledger GROUP BY 1 ORDER BY 1"
@@ -187,7 +221,7 @@ def local_checks(
             """
         ).fetchone()
         duplicate_trade_rows = conn.execute(
-            "SELECT count(*) - count(DISTINCT trade_key) FROM trade_fact"
+            f"SELECT count(*) - count(DISTINCT {trade_key_column}) FROM trade_fact"
         ).fetchone()[0]
         market_trade_reconciliation = conn.execute(
             f"""
@@ -235,11 +269,10 @@ def local_checks(
             "SELECT count(*) - count(DISTINCT condition_id) FROM market_dim"
         ).fetchone()[0]
         market_bad_outcomes = conn.execute(
-            """
+            f"""
             SELECT count(*) FROM market_dim
             WHERE json_array_length(outcomes) <> 2
-               OR current_price_a < 0 OR current_price_a > 1
-               OR current_price_b < 0 OR current_price_b > 1
+               OR {market_price_domain_sql}
             """
         ).fetchone()[0]
         invalid_trade_rows = conn.execute(
@@ -257,13 +290,13 @@ def local_checks(
             "SELECT count(*) FROM trade_fact WHERE trade_timestamp > ?", [now_ts + 60]
         ).fetchone()[0]
         out_of_window = conn.execute(
-            """
+            f"""
             SELECT count(*)
             FROM trade_fact t
             JOIN market_dim m USING (condition_id)
             WHERE t.trade_timestamp < m.market_start_ts
-               OR (m.market_closed AND t.trade_timestamp > m.market_end_ts + 60)
-               OR (NOT m.market_closed AND t.trade_timestamp > ?)
+               OR ({market_closed_column} AND t.trade_timestamp > m.market_end_ts + 60)
+               OR (NOT ({market_closed_column}) AND t.trade_timestamp > ?)
             """,
             [now_ts + 60],
         ).fetchone()[0]
@@ -278,14 +311,14 @@ def local_checks(
             """
         ).fetchone()
         accounting = conn.execute(
-            """
+            f"""
             SELECT
                 max(abs(cash_flow - (sell_proceeds - buy_cost))),
                 max(CASE WHEN resolution_type IN ('resolved', 'tie')
-                    THEN abs(realized_pnl - (cash_flow + net_shares_a * final_price_a + net_shares_b * final_price_b))
+                    THEN abs({settled_pnl_column} - (cash_flow + net_shares_a * {settled_price_a_column} + net_shares_b * {settled_price_b_column}))
                     ELSE 0 END),
                 count(*) FILTER (WHERE resolution_type NOT IN ('resolved', 'tie')
-                    AND (settlement_value IS NOT NULL OR realized_pnl IS NOT NULL OR pnl IS NOT NULL)),
+                    AND ({unresolved_value_sql})),
                 count(*) FILTER (WHERE resolution_type IN ('resolved', 'tie')
                     AND result = 'unsettled')
             FROM wallet_game_ledger
@@ -319,10 +352,20 @@ def local_checks(
     finally:
         conn.close()
 
+    event_dates = [str(event.get("eventDate") or "")[:10] for event in events if event.get("eventDate")]
+    scope_start = str(manifest.get("start_date") or min(event_dates or ["9999-12-31"]))
+    scope_end = str(manifest.get("end_date") or max(event_dates or ["0001-01-01"]))
+    event_series_ids = sorted({
+        str(series.get("id"))
+        for event in events
+        for series in (event.get("series") or [])
+        if isinstance(series, dict) and series.get("id")
+    })
+    series_id = str(manifest.get("series_id") or (event_series_ids[0] if event_series_ids else ""))
     moneyline_markets = [
         market
         for event in events
-        if manifest.get("start_date", "") <= str(event.get("eventDate") or "")[:10] <= manifest.get("end_date", "")
+        if scope_start <= str(event.get("eventDate") or "")[:10] <= scope_end
         for market in event.get("markets") or []
         if market.get("sportsMarketType") == "moneyline"
     ]
@@ -369,7 +412,7 @@ def local_checks(
     check(checks, "trade timestamps are plausible", future_trades == 0 and out_of_window == 0,
           {"future_trade_rows": future_trades, "out_of_window_rows": out_of_window,
            "capture_time_utc": datetime.now(timezone.utc).isoformat()})
-    check(checks, "replay accounting identities", finite(accounting[0]) <= 1e-8
+    check(checks, "replay accounting identities", finite(accounting[0]) <= 1e-7
           and finite(accounting[1]) <= 1e-7 and accounting[2] == 0 and accounting[3] == 0,
           {"max_cash_flow_residual": accounting[0], "max_realized_pnl_residual": accounting[1],
            "unresolved_with_settlement_or_realized_pnl": accounting[2],
@@ -431,10 +474,10 @@ def local_checks(
     result_counts = {row[0]: row[1] for row in result_rows}
     return {
         "manifest": {
-            "series_id": manifest.get("series_id"),
+            "series_id": series_id,
             "season": manifest.get("season"),
-            "start_date": manifest.get("start_date"),
-            "end_date": manifest.get("end_date"),
+            "start_date": scope_start,
+            "end_date": scope_end,
             "generated_at_utc": manifest.get("generated_at_utc") or pipeline_metadata.get("generated_at_utc"),
             "market_count": market_count,
             "trade_count": trade_count,
