@@ -5,7 +5,7 @@
 | Dataset/table | Grain | Main use |
 |---|---|---|
 | `market_dim` | One moneyline market/game | Teams, dates, outcomes, final prices |
-| `trade_fact` | One API trade row | Full-fidelity replay and microstructure checks |
+| `trade_fact` | One canonical API trade fill | Full-fidelity replay and microstructure checks |
 | `wallet_game_ledger` | One wallet × game | Performance filters and bettor rankings |
 | Wallet summary CSV | One wallet | Cross-game ranking and consistency |
 
@@ -20,6 +20,14 @@
 - `size`: number of shares;
 - `timestamp` and `trade_time_utc`: event time;
 - `transaction_hash`: blockchain transaction reference, not a unique fill ID.
+
+The canonical trade identity is the normalized tuple
+`proxyWallet + asset + conditionId + side + size + price + timestamp + transactionHash`.
+Wallet addresses, sides, and transaction hashes are case-normalized. API
+refreshes can overlap, and enrichment fields such as bettor names and event
+titles can change; those fields are not used to decide whether a fill is new.
+Bronze keeps the raw overlap count for auditability, while `trade_fact` keeps
+exactly one row per canonical identity.
 
 ## Replay logic
 

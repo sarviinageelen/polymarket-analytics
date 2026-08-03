@@ -26,6 +26,7 @@ import pyarrow as pa
 
 ROOT = Path(__file__).resolve().parents[1]
 NAV_ROOT = ROOT / "external" / "Nav1212-PolyMarketAnalytics"
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(NAV_ROOT))
 
 from fetcher.config import get_config  # noqa: E402
@@ -34,6 +35,7 @@ from fetcher.persistence.parquet_persister import DataType, ParquetPersister  # 
 from fetcher.persistence.swappable_queue import SwappableQueue  # noqa: E402
 from fetcher.workers.trade_fetcher import TradeFetcher  # noqa: E402
 from fetcher.workers.worker_manager import WorkerManager  # noqa: E402
+from polymarket_analytics.trade_identity import identity_sql_columns, trade_identity  # noqa: E402
 
 
 PAGE_SIZE = 10_000
@@ -235,16 +237,7 @@ class NavScopedTradeFetcher(TradeFetcher):
         seen: set[tuple[Any, ...]] = set()
         output: list[dict[str, Any]] = []
         for row in rows:
-            key = (
-                row.get("proxyWallet"),
-                row.get("asset"),
-                row.get("conditionId"),
-                row.get("side"),
-                row.get("size"),
-                row.get("price"),
-                row.get("timestamp"),
-                row.get("transactionHash"),
-            )
+            key = trade_identity(row)
             if key in seen:
                 continue
             seen.add(key)
@@ -327,15 +320,14 @@ def unique_trade_counts(trade_dir: Path) -> tuple[int, int]:
 
     pattern = str(trade_dir / "*.parquet").replace("'", "''")
     conn = duckdb.connect()
+    identity_columns = ", ".join(identity_sql_columns())
     try:
         raw = int(conn.execute(f"SELECT count(*) FROM read_parquet('{pattern}', union_by_name=true)").fetchone()[0])
         unique = int(
             conn.execute(
                 f"""
                 SELECT count(*) FROM (
-                    SELECT DISTINCT
-                        proxyWallet, asset, conditionId, side, size, price,
-                        timestamp, transactionHash
+                    SELECT DISTINCT {identity_columns}
                     FROM read_parquet('{pattern}', union_by_name=true)
                 )
                 """

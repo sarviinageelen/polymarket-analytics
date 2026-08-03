@@ -26,11 +26,19 @@ import duckdb
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from polymarket_analytics.trade_identity import identity_sql_columns  # noqa: E402
+
 DEFAULT_EXPERIMENT_DIR = ROOT / "data/experiments/nav_wnba_2026_moneyline"
 DEFAULT_EVENTS = ROOT / "data/raw/wnba_2026_events.json"
 DEFAULT_WORKBOOK = ROOT / "reports/generated/wnba_2026_moneyline_picks.xlsx"
 DEFAULT_OUTPUT = ROOT / "reports/wnba_2026_validation.json"
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+POLYGON_RPC_ENDPOINTS = (
+    "https://polygon-rpc.com",
+    "https://polygon.drpc.org",
+    "https://polygon.publicnode.com",
+)
 
 
 def finite(value: object) -> float:
@@ -149,14 +157,71 @@ def local_checks(
         result_rows = conn.execute(
             "SELECT result, count(*) FROM wallet_game_ledger GROUP BY 1 ORDER BY 1"
         ).fetchall()
-        raw_count, unique_raw_count = conn.execute(
+        identity_columns = ", ".join(identity_sql_columns())
+        raw_count = conn.execute(
+            f"SELECT count(*) FROM read_parquet('{trade_glob}', union_by_name=true)"
+        ).fetchone()[0]
+        unique_raw_count = conn.execute(
             f"""
-            SELECT count(*), count(DISTINCT md5(concat_ws('|',
-                COALESCE(proxyWallet, ''), COALESCE(asset, ''), COALESCE(conditionId, ''),
-                COALESCE(side, ''), CAST(size AS VARCHAR), CAST(price AS VARCHAR),
-                CAST(timestamp AS VARCHAR), COALESCE(transactionHash, '')
-            )))
-            FROM read_parquet('{trade_glob}', union_by_name=true)
+            SELECT count(*) FROM (
+                SELECT DISTINCT {identity_columns}
+                FROM read_parquet('{trade_glob}', union_by_name=true)
+            )
+            """
+        ).fetchone()[0]
+        identity_conflicts = conn.execute(
+            f"""
+            WITH grouped AS (
+                SELECT
+                    {identity_columns},
+                    count(*) AS raw_rows,
+                    count(DISTINCT coalesce(outcome, '')) AS outcome_values,
+                    count(DISTINCT coalesce(CAST(outcomeIndex AS VARCHAR), '<NULL>')) AS outcome_index_values
+                FROM read_parquet('{trade_glob}', union_by_name=true)
+                GROUP BY {identity_columns}
+            )
+            SELECT
+                count(*) FILTER (WHERE outcome_values > 1 OR outcome_index_values > 1),
+                coalesce(sum(raw_rows - 1) FILTER (WHERE outcome_values > 1 OR outcome_index_values > 1), 0)
+            FROM grouped
+            """
+        ).fetchone()
+        duplicate_trade_rows = conn.execute(
+            "SELECT count(*) - count(DISTINCT trade_key) FROM trade_fact"
+        ).fetchone()[0]
+        market_trade_reconciliation = conn.execute(
+            f"""
+            WITH unique_raw AS (
+                SELECT DISTINCT
+                    {identity_sql_columns()[0]} AS wallet_identity,
+                    {identity_sql_columns()[1]} AS asset_identity,
+                    {identity_sql_columns()[2]} AS condition_id,
+                    {identity_sql_columns()[3]} AS side_identity,
+                    {identity_sql_columns()[4]} AS size_identity,
+                    {identity_sql_columns()[5]} AS price_identity,
+                    {identity_sql_columns()[6]} AS timestamp_identity,
+                    {identity_sql_columns()[7]} AS transaction_identity
+                FROM read_parquet('{trade_glob}', union_by_name=true)
+            ), raw_counts AS (
+                SELECT lower(condition_id) AS condition_id, count(*) AS trade_rows
+                FROM unique_raw
+                GROUP BY lower(condition_id)
+            ), db_counts AS (
+                SELECT lower(condition_id) AS condition_id, count(*) AS trade_rows
+                FROM trade_fact
+                GROUP BY lower(condition_id)
+            ), comparison AS (
+                SELECT
+                    coalesce(raw_counts.condition_id, db_counts.condition_id) AS condition_id,
+                    coalesce(raw_counts.trade_rows, 0) AS raw_trade_rows,
+                    coalesce(db_counts.trade_rows, 0) AS db_trade_rows
+                FROM raw_counts
+                FULL OUTER JOIN db_counts USING (condition_id)
+            )
+            SELECT
+                count(*) FILTER (WHERE raw_trade_rows <> db_trade_rows),
+                coalesce(sum(abs(raw_trade_rows - db_trade_rows)), 0)
+            FROM comparison
             """
         ).fetchone()
         orphan_trades = conn.execute(
@@ -282,6 +347,17 @@ def local_checks(
           {"manifest_unique_trades": manifest.get("trade_rows"), "parquet_raw_trades": raw_count,
            "parquet_unique_trades": unique_raw_count, "duckdb_trades": trade_count,
            "refresh_duplicate_rows": raw_count - unique_raw_count}, severity="critical")
+    check(checks, "DuckDB canonical trade identity is unique",
+          duplicate_trade_rows == 0,
+          {"duplicate_trade_rows": duplicate_trade_rows}, severity="critical")
+    check(checks, "Trade counts reconcile by market",
+          market_trade_reconciliation[0] == 0 and market_trade_reconciliation[1] == 0,
+          {"markets_with_count_mismatch": market_trade_reconciliation[0],
+           "absolute_trade_row_difference": market_trade_reconciliation[1]}, severity="critical")
+    check(checks, "Trade identity has no conflicting outcome facts",
+          identity_conflicts[0] == 0,
+          {"conflicting_identity_keys": identity_conflicts[0],
+           "conflicting_duplicate_rows": identity_conflicts[1]}, severity="critical")
     check(checks, "trade-to-market referential integrity", orphan_trades == 0,
           {"orphan_trade_rows": orphan_trades, "ledger_rows": ledger_count})
     check(checks, "market shape and price domains", market_duplicate_keys == 0 and market_bad_outcomes == 0,
@@ -495,25 +571,40 @@ def onchain_check(experiment_dir: Path, checks: list[dict]) -> dict:
         return {}
     results = []
     for transaction_hash in hashes:
-        try:
-            payload = request_json(
-                "https://polygon-rpc.com",
-                method="POST",
-                payload={"jsonrpc": "2.0", "id": 1, "method": "eth_getTransactionReceipt", "params": [transaction_hash]},
-            )
-            receipt = payload.get("result") if isinstance(payload, dict) else None
-            results.append({"transaction_hash": transaction_hash, "receipt_found": bool(receipt), "status": receipt.get("status") if receipt else None})
-        except Exception as exc:
-            results.append({"transaction_hash": transaction_hash, "error": repr(exc)})
+        endpoint_errors = []
+        for endpoint in POLYGON_RPC_ENDPOINTS:
+            try:
+                payload = request_json(
+                    endpoint,
+                    method="POST",
+                    payload={"jsonrpc": "2.0", "id": 1, "method": "eth_getTransactionReceipt", "params": [transaction_hash]},
+                )
+                if isinstance(payload, dict) and payload.get("error"):
+                    endpoint_errors.append({"endpoint": endpoint, "error": payload["error"]})
+                    continue
+                receipt = payload.get("result") if isinstance(payload, dict) else None
+                results.append({
+                    "transaction_hash": transaction_hash,
+                    "endpoint": endpoint,
+                    "receipt_found": bool(receipt),
+                    "status": receipt.get("status") if receipt else None,
+                })
+                break
+            except Exception as exc:
+                endpoint_errors.append({"endpoint": endpoint, "error": repr(exc)})
+        else:
+            results.append({"transaction_hash": transaction_hash, "errors": endpoint_errors})
     successful_receipts = [row for row in results if row.get("receipt_found") and row.get("status") == "0x1"]
-    if not successful_receipts and any(row.get("error") for row in results):
+    usable_results = [row for row in results if "receipt_found" in row]
+    if not usable_results:
         not_run(checks, "Polygon transaction receipt spot check", {
             "samples": results,
-            "reason": "The public RPC endpoint rejected the read; this is an access limitation, not evidence of an invalid transaction.",
+            "reason": "All configured public Polygon RPC endpoints rejected the read; this is an access limitation, not evidence of an invalid transaction.",
         })
     else:
         check(checks, "Polygon transaction receipt spot check",
-              len(successful_receipts) == len(results), {"samples": results}, severity="medium")
+              len(successful_receipts) == len(usable_results),
+              {"samples": results, "usable_samples": len(usable_results)}, severity="medium")
     return {"samples": results}
 
 

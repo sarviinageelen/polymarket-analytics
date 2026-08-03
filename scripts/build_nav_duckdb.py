@@ -19,6 +19,13 @@ import duckdb
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+from polymarket_analytics.trade_identity import (  # noqa: E402
+    TRADE_IDENTITY_COLUMNS,
+    identity_hash_sql,
+    identity_sql_columns,
+)
+
 DEFAULT_EXPERIMENT_DIR = ROOT / "data/experiments/nav_nfl_2025_moneyline"
 DEFAULT_DB = DEFAULT_EXPERIMENT_DIR / "silver" / "nfl_2025_moneyline.duckdb"
 
@@ -143,9 +150,32 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
         conn.execute(
             f"""
             CREATE OR REPLACE TABLE trade_fact AS
-            WITH deduplicated AS (
-                SELECT DISTINCT *
+            WITH ranked AS (
+                SELECT
+                    *,
+                    row_number() OVER (
+                        PARTITION BY {", ".join(identity_sql_columns())}
+                        ORDER BY
+                            CASE WHEN upper(coalesce(side, '')) IN ('BUY', 'SELL') THEN 1 ELSE 0 END DESC,
+                            CASE WHEN outcomeIndex IN (0, 1) THEN 1 ELSE 0 END DESC,
+                            CASE WHEN price BETWEEN 0 AND 1 THEN 1 ELSE 0 END DESC,
+                            CASE WHEN size > 0 THEN 1 ELSE 0 END DESC,
+                            CASE WHEN timestamp > 0 THEN 1 ELSE 0 END DESC,
+                            CASE WHEN nullif(coalesce(event_id, ''), '') IS NOT NULL THEN 1 ELSE 0 END DESC,
+                            CASE WHEN nullif(coalesce(title, ''), '') IS NOT NULL THEN 1 ELSE 0 END DESC,
+                            CASE WHEN nullif(coalesce(name, ''), '') IS NOT NULL THEN 1 ELSE 0 END DESC,
+                            CASE WHEN nullif(coalesce(pseudonym, ''), '') IS NOT NULL THEN 1 ELSE 0 END DESC,
+                            coalesce(event_id, '') DESC,
+                            coalesce(eventSlug, '') DESC,
+                            coalesce(title, '') DESC,
+                            coalesce(name, '') DESC,
+                            coalesce(pseudonym, '') DESC
+                    ) AS _trade_identity_rank
                 FROM read_parquet('{trade_glob}', union_by_name=true)
+            ), deduplicated AS (
+                SELECT * EXCLUDE (_trade_identity_rank)
+                FROM ranked
+                WHERE _trade_identity_rank = 1
             )
             SELECT
                 proxyWallet,
@@ -158,7 +188,7 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
                 timestamp AS trade_timestamp,
                 to_timestamp(timestamp) AS trade_time_utc,
                 transactionHash AS transaction_hash,
-                md5(concat_ws('|', lower(proxyWallet), asset, conditionId, side, CAST(size AS VARCHAR), CAST(price AS VARCHAR), CAST(timestamp AS VARCHAR), transactionHash)) AS trade_key,
+                {identity_hash_sql()} AS trade_key,
                 outcome,
                 outcomeIndex AS outcome_index,
                 name,
@@ -173,6 +203,16 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
             FROM deduplicated
             """
         )
+        duplicate_trade_rows = int(
+            conn.execute(
+                "SELECT count(*) - count(DISTINCT trade_key) FROM trade_fact"
+            ).fetchone()[0]
+        )
+        if duplicate_trade_rows:
+            raise RuntimeError(
+                "DuckDB trade identity deduplication left "
+                f"{duplicate_trade_rows} duplicate trade rows"
+            )
         conn.execute(
             """
             CREATE OR REPLACE TABLE wallet_game_ledger AS
@@ -253,7 +293,8 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
                 ('start_date', ?),
                 ('end_date', ?),
                 ('generated_at_utc', ?),
-                ('bronze_path', ?)
+                ('bronze_path', ?),
+                ('trade_identity', ?)
             ) AS metadata(key, value)
             """,
             [
@@ -267,6 +308,7 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
                 str(manifest.get("end_date", "")),
                 datetime.now(timezone.utc).isoformat(),
                 str(trade_dir),
+                "|".join(TRADE_IDENTITY_COLUMNS),
             ],
         )
         counts = {
@@ -277,6 +319,12 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
             "unsettled_ledgers": int(conn.execute("SELECT count(*) FROM wallet_game_ledger WHERE result = 'unsettled'").fetchone()[0]),
             "db_path": str(db_path),
         }
+        expected_trade_rows = manifest.get("trade_rows")
+        if expected_trade_rows is not None and int(expected_trade_rows) != counts["trade_rows"]:
+            raise RuntimeError(
+                "manifest and DuckDB trade counts disagree: "
+                f"manifest={expected_trade_rows} db={counts['trade_rows']}"
+            )
         conn.execute("CHECKPOINT")
     finally:
         conn.close()

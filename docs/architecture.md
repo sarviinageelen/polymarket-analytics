@@ -77,8 +77,9 @@ be unresolved even when its event is closed; archived/inactive unresolved
 markets are labeled stale_unresolved.
 
 The collector refreshes unresolved markets through the capture timestamp. The
-DuckDB build deduplicates exact source trade rows before creating wallet-game
-ledgers, so refreshing an open market cannot inflate realized P&L. Unresolved
+DuckDB build deduplicates by canonical source-trade identity before creating
+wallet-game ledgers, so refreshing an open market cannot inflate realized P&L.
+Unresolved
 ledgers expose mark-to-market values but leave settlement and realized P&L
 null.
 
