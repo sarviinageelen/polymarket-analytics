@@ -449,16 +449,84 @@ function GameTrendsView({ filters, setFilters, catalog, gameTrend, loading, erro
 }
 
 function CalibrationChart({ bands, summary }) {
+  const [hoveredBand, setHoveredBand] = useState("");
   const delta = summary.favorite_win_rate_pct == null || summary.avg_favorite_implied_pct == null ? null : Number(summary.favorite_win_rate_pct) - Number(summary.avg_favorite_implied_pct);
-  const width = (value) => `${Math.max(0, Math.min(100, Number(value || 0)))}%`;
+  const plot = { width: 700, height: 360, left: 62, right: 24, top: 22, bottom: 58 };
+  const plotWidth = plot.width - plot.left - plot.right;
+  const plotHeight = plot.height - plot.top - plot.bottom;
+  const ticks = [50, 60, 70, 80, 90, 100];
+  const points = bands.filter((row) => Number(row.games) > 0 && row.avg_implied_pct != null && row.win_rate_pct != null).map((row) => ({
+    ...row,
+    x: plot.left + ((Number(row.avg_implied_pct) - 50) / 50) * plotWidth,
+    y: plot.top + (1 - ((Number(row.win_rate_pct) - 50) / 50)) * plotHeight,
+  }));
+  const hovered = points.find((point) => point.band === hoveredBand) || null;
+  const xTick = (value) => plot.left + ((value - 50) / 50) * plotWidth;
+  const yTick = (value) => plot.top + (1 - ((value - 50) / 50)) * plotHeight;
   return <LayerCard className="panel calibration-panel">
-    <div className="panel-header calibration-header"><div className="panel-heading-copy"><Kicker>Primary visual</Kicker><h2>Observed wins vs market price</h2><p>Each row uses the same 0–100% scale. The blue bar is how often the favorite won; the outlined bar is the average pre-match market price.</p></div><div className="calibration-takeaway"><small>All analysed games</small><strong>{formatPercent(summary.favorite_win_rate_pct)} actual</strong><span>vs {formatPercent(summary.avg_favorite_implied_pct)} price · {formatDelta(delta)}</span></div></div>
-    <figure className="calibration-chart" aria-label="Observed favorite win rate compared with average pre-match market price by favorite price band">
-      <div className="chart-legend"><span><i className="legend-swatch actual" />Observed favorite wins</span><span><i className="legend-swatch implied" />Average market price</span></div>
-      <div className="calibration-guide"><span><b>1</b>Market price = pre-match estimate</span><span><b>2</b>Blue bar = actual wins</span><span><b>3</b>Gap = actual minus estimate</span></div>
-      <div className="calibration-axis" aria-hidden="true"><span>0%</span><span>50%</span><span>100%</span></div>
-      <div className="calibration-rows">{bands.map((row) => <div className="calibration-row" key={row.band}><div className="calibration-row-label"><strong>{row.band}</strong><small>n={formatNumber(row.games)}</small></div><div className="calibration-pair"><div className="calibration-line"><span className="calibration-track"><span className="calibration-fill actual" style={{ width: width(row.win_rate_pct) }} /></span><strong>{formatPercent(row.win_rate_pct)}</strong></div><div className="calibration-line"><span className="calibration-track"><span className="calibration-fill implied" style={{ width: width(row.avg_implied_pct) }} /></span><strong>{formatPercent(row.avg_implied_pct)}</strong></div></div></div>)}</div>
-      <figcaption>Delta is actual win rate minus average market price. A value near zero means the observed favorite rate matched the stored price for that band.</figcaption>
+    <div className="panel-header calibration-header"><div className="panel-heading-copy"><Kicker>Primary visual</Kicker><h2>Observed win rate vs market price</h2><p>Each dot is a favorite price band. Dots on the diagonal are calibrated: a 70% price translated into roughly 70% actual wins.</p></div><div className="calibration-takeaway"><small>All analysed games</small><strong>{formatPercent(summary.favorite_win_rate_pct)} actual</strong><span>vs {formatPercent(summary.avg_favorite_implied_pct)} price · {formatDelta(delta)}</span></div></div>
+    <figure className="calibration-chart" aria-label="Calibration plot comparing observed favorite win rate with average pre-match market price">
+      <div className="chart-legend"><span><i className="legend-swatch actual-dot" />Observed favorite wins</span><span><i className="legend-swatch reference-line" />Perfect calibration</span></div>
+      <div className="calibration-plot-wrap">
+        <svg className="calibration-plot" viewBox={`0 0 ${plot.width} ${plot.height}`} role="img" aria-labelledby="calibration-title calibration-description">
+          <title id="calibration-title">Observed win rate versus market price</title>
+          <desc id="calibration-description">The horizontal axis is the average favorite market price and the vertical axis is the observed favorite win rate. The diagonal line represents perfect calibration.</desc>
+          <rect className="chart-surface" x={plot.left} y={plot.top} width={plotWidth} height={plotHeight} rx="8" />
+          {ticks.map((tick) => <g key={tick}><line className="chart-gridline" x1={plot.left} x2={plot.left + plotWidth} y1={yTick(tick)} y2={yTick(tick)} /><line className="chart-gridline vertical" x1={xTick(tick)} x2={xTick(tick)} y1={plot.top} y2={plot.top + plotHeight} /><text className="chart-tick" x={plot.left - 10} y={yTick(tick) + 4} textAnchor="end">{tick}%</text><text className="chart-tick" x={xTick(tick)} y={plot.top + plotHeight + 22} textAnchor="middle">{tick}%</text></g>)}
+          <line className="calibration-reference" x1={xTick(50)} y1={yTick(50)} x2={xTick(100)} y2={yTick(100)} />
+          <text className="calibration-reference-label" x={xTick(82)} y={yTick(82) - 9}>Perfect calibration</text>
+          {points.map((point) => <g className={`calibration-point ${hoveredBand === point.band ? "is-hovered" : ""}`} key={point.band} role="button" tabIndex="0" onMouseEnter={() => setHoveredBand(point.band)} onMouseLeave={() => setHoveredBand("")} onFocus={() => setHoveredBand(point.band)} onBlur={() => setHoveredBand("")} onKeyDown={(event) => { if (event.key === "Escape") setHoveredBand(""); }}>
+            <circle className="calibration-point-hit" cx={point.x} cy={point.y} r="15" />
+            <circle className="calibration-point-dot" cx={point.x} cy={point.y} r={Number(point.games) >= 25 ? 9 : 7} />
+            <text className="calibration-point-label" x={Math.min(plot.left + plotWidth - 4, point.x + 11)} y={Math.max(plot.top + 13, point.y - 11)}>{point.band.replace("%", "")}</text>
+            <title>{`${point.band}: ${formatPercent(point.win_rate_pct)} actual vs ${formatPercent(point.avg_implied_pct)} price, n=${formatNumber(point.games)}`}</title>
+          </g>)}
+          <text className="chart-axis-label" x={plot.left + plotWidth / 2} y={plot.height - 9} textAnchor="middle">Average pre-match market price</text>
+          <text className="chart-axis-label" transform={`rotate(-90 15 ${plot.top + plotHeight / 2})`} x="15" y={plot.top + plotHeight / 2} textAnchor="middle">Observed favorite win rate</text>
+        </svg>
+      </div>
+      <div className="calibration-hover-readout" aria-live="polite">{hovered ? <><strong>{hovered.band}</strong><span>{formatPercent(hovered.win_rate_pct)} actual wins vs {formatPercent(hovered.avg_implied_pct)} price · {formatDelta(hovered.calibration_delta_pct)} · n={formatNumber(hovered.games)}</span></> : <span>Hover or focus a dot to see the exact band values.</span>}</div>
+      <figcaption>Blue dots show what happened; the diagonal is the market’s “right on target” line. A dot below the line means the market was more confident than the results justified.</figcaption>
+    </figure>
+  </LayerCard>;
+}
+
+function summarizeOddsGroups(games) {
+  const definitions = [
+    { key: "favorite", label: "Favorites", priceKey: "favorite_implied_pct", resultKey: "favorite_result" },
+    { key: "underdog", label: "Underdogs", priceKey: "underdog_price", resultKey: "underdog_result", priceIsDecimal: true },
+    { key: "home", label: "Home teams", priceKey: "home_implied_pct", resultKey: "home_result", requiresVenuePair: true },
+    { key: "away", label: "Away teams", priceKey: "away_implied_pct", resultKey: "away_result", requiresVenuePair: true },
+  ];
+  return definitions.map((definition) => {
+    const observations = games.map((game) => {
+      const rawPrice = game[definition.priceKey];
+      const result = game[definition.resultKey];
+      if (definition.requiresVenuePair && game.home_away_status !== "available") return null;
+      if (rawPrice == null || !["win", "loss"].includes(result)) return null;
+      const price = definition.priceIsDecimal ? Number(rawPrice) * 100 : Number(rawPrice);
+      return Number.isFinite(price) ? { price, won: result === "win" } : null;
+    }).filter(Boolean);
+    const wins = observations.filter((row) => row.won).length;
+    return {
+      ...definition,
+      games: observations.length,
+      wins,
+      actual: observations.length ? wins / observations.length * 100 : null,
+      price: observations.length ? observations.reduce((total, row) => total + row.price, 0) / observations.length : null,
+    };
+  });
+}
+
+function ComparisonChart({ games }) {
+  const rows = summarizeOddsGroups(games);
+  return <LayerCard className="panel comparison-panel">
+    <div className="panel-header"><div className="panel-heading-copy"><Kicker>Outcome split</Kicker><h2>Actual wins vs average price</h2><p>Blue is the observed win rate. The vertical marker is the average pre-match price for the same group.</p></div></div>
+    <figure className="comparison-chart" aria-label="Observed win rate compared with average pre-match price for favorites, underdogs, home teams, and away teams">
+      <div className="chart-legend"><span><i className="legend-swatch actual" />Actual win rate</span><span><i className="legend-swatch price-marker" />Average price</span></div>
+      <div className="comparison-axis" aria-hidden="true"><span>0%</span><span>50%</span><span>100%</span></div>
+      <div className="comparison-rows">{rows.map((row) => <div className="comparison-row" key={row.key}><div className="comparison-row-label"><strong>{row.label}</strong><small>n={formatNumber(row.games)}</small></div><div className="comparison-track"><span className="comparison-fill" style={{ width: `${Math.max(0, Math.min(100, Number(row.actual || 0)))}%` }} />{row.price != null && <span className="comparison-marker" style={{ left: `${Math.max(0, Math.min(100, row.price))}%` }} aria-hidden="true" />}</div><div className="comparison-values"><strong>{formatPercent(row.actual)}</strong><span>{row.price == null ? "—" : `price ${formatPercent(row.price)}`}</span></div></div>)}</div>
+      <figcaption>Comparisons use the same resolved, priced games selected by the current filters. Home and away appear only when the cached event snapshot identifies the venue.</figcaption>
     </figure>
   </LayerCard>;
 }
@@ -493,7 +561,7 @@ function OddsPerformanceView({ filters, setFilters, oddsFilters, setOddsFilters,
     {!loading && analysis && <>
       {Number(summary.games_missing_prematch_prices || 0) > 0 && <div className="info-callout odds-warning"><WarningCircle size={17} /><span>{formatNumber(summary.games_missing_prematch_prices)} resolved market{Number(summary.games_missing_prematch_prices) === 1 ? "" : "s"} did not have two pre-match prices and {summary.tie_markets ? "ties are excluded from win-rate calculations." : "were excluded from win-rate calculations."}</span></div>}
       <section className="metrics-grid odds-metrics"><MetricCard label="Games analysed" value={formatNumber(summary.selected_games)} detail="Resolved, non-tie games with prices" icon={CheckCircle} tone="green" /><MetricCard label="Favorite win rate" value={formatPercent(summary.favorite_win_rate_pct)} detail={`n=${formatNumber(summary.favorite_games)}`} icon={Trophy} tone="blue" /><MetricCard label="Average favorite price" value={formatPercent(summary.avg_favorite_implied_pct)} detail="Before cached kickoff" icon={ChartLine} tone="violet" /><MetricCard label="Home / away coverage" value={formatPercent(summary.home_away_coverage_pct)} detail={`${formatNumber(summary.home_away_games)} games mapped`} icon={ShieldCheck} tone="orange" /></section>
-      <CalibrationChart bands={bands} summary={summary} />
+      <section className="odds-visual-grid"><CalibrationChart bands={bands} summary={summary} /><ComparisonChart games={games} /></section>
       <section className="odds-grid">
         <LayerCard className="panel odds-band-panel"><div className="panel-header"><div className="panel-heading-copy"><Kicker>Exact values</Kicker><h2>Favorite price bands</h2><p>Use this table when you need the precise counts behind the chart.</p></div></div><div className="table-scroll"><table className="analytics-table compact-table odds-band-table"><thead><tr><th>Price band</th><th>Games</th><th>Favorite wins</th><th>Actual rate</th><th>Avg price</th><th>Delta</th></tr></thead><tbody>{bands.map((row) => <tr key={row.band}><td><strong>{row.band}</strong></td><td>{formatNumber(row.games)}</td><td>{formatNumber(row.wins)}–{formatNumber(row.losses)}</td><td>{formatPercent(row.win_rate_pct)}</td><td>{formatPercent(row.avg_implied_pct)}</td><td className={Number(row.calibration_delta_pct) >= 0 ? "delta-positive" : "delta-negative"}>{formatDelta(row.calibration_delta_pct)}</td></tr>)}</tbody></table></div></LayerCard>
         <LayerCard className="panel odds-method-panel"><div className="panel-header"><div className="panel-heading-copy"><Kicker>Method and coverage</Kicker><h2>What is in the comparison</h2></div></div><dl className="odds-method-list"><div><dt>Markets in snapshot</dt><dd>{formatNumber(summary.markets_total)}</dd></div><div><dt>Resolved markets</dt><dd>{formatNumber(summary.resolved_markets)}</dd></div><div><dt>Pre-match prices</dt><dd>{formatNumber(summary.games_with_prematch_prices)}</dd></div><div><dt>Venue metadata</dt><dd>{formatPercent(summary.home_away_coverage_pct)}</dd></div></dl><p className="method-note">{analysis.methodology?.calibration}</p></LayerCard>

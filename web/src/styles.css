@@ -305,7 +305,8 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .odds-warning { margin: 0 0 16px; color: #92400e; background: #fffbeb; box-shadow: 0 0 0 1px #fde68a; }
 .odds-warning svg { flex: 0 0 auto; margin-top: 2px; color: #b45309; }
 .odds-metrics { margin-bottom: 16px; }
-.calibration-panel { margin-bottom: 16px; }
+.odds-visual-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, .75fr); gap: 16px; margin-bottom: 16px; }
+.calibration-panel, .comparison-panel { min-width: 0; margin-bottom: 0; }
 .calibration-header { align-items: flex-start; margin-bottom: 20px; }
 .calibration-takeaway { display: flex; min-width: 235px; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 9px; background: var(--blue-soft); box-shadow: 0 0 0 1px #bfdbfe; }
 .calibration-takeaway small { color: var(--muted); font-size: 12px; }
@@ -316,25 +317,42 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 .chart-legend span { display: inline-flex; align-items: center; gap: 7px; }
 .legend-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 3px; }
 .legend-swatch.actual { background: var(--blue); }
-.legend-swatch.implied { background: var(--panel); box-shadow: 0 0 0 1px var(--ink-soft); }
-.calibration-guide { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 15px; color: var(--muted); font-size: 13px; }
-.calibration-guide span { display: inline-flex; align-items: center; gap: 6px; }
-.calibration-guide b { display: inline-grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; color: var(--ink-soft); background: var(--orange-soft); font-size: 12px; font-weight: 600; }
-.calibration-axis { display: flex; justify-content: space-between; margin: 0 68px 5px 126px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.calibration-rows { border-top: 1px solid var(--line); }
-.calibration-row { display: grid; grid-template-columns: minmax(100px, 126px) minmax(0, 1fr); align-items: center; gap: 13px; padding: 12px 0; }
-.calibration-row + .calibration-row { border-top: 1px solid var(--line); }
-.calibration-row-label { display: flex; flex-direction: column; gap: 2px; }
-.calibration-row-label strong { color: var(--ink-soft); font-size: 14px; font-weight: 600; }
-.calibration-row-label small { color: var(--muted); font-size: 12px; }
-.calibration-pair { display: grid; gap: 7px; min-width: 0; }
-.calibration-line { display: grid; grid-template-columns: minmax(0, 1fr) 58px; align-items: center; gap: 9px; }
-.calibration-track { display: block; height: 11px; overflow: hidden; border-radius: 999px; background: #f1f5f9; box-shadow: 0 0 0 1px var(--line); }
-.calibration-fill { display: block; height: 100%; min-width: 0; border-radius: inherit; }
-.calibration-fill.actual { background: var(--blue); }
-.calibration-fill.implied { background: var(--panel); box-shadow: inset 0 0 0 2px var(--ink-soft); }
-.calibration-line strong { color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
-.calibration-chart figcaption { margin-top: 14px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.legend-swatch.actual-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 2px #dbeafe; }
+.legend-swatch.reference-line { width: 18px; height: 0; border-top: 2px dashed var(--ink-soft); border-radius: 0; }
+.calibration-plot-wrap { width: 100%; overflow: hidden; margin: 0 -3px; }
+.calibration-plot { display: block; width: 100%; height: auto; min-height: 285px; overflow: visible; }
+.chart-surface { fill: #fbfcfe; stroke: var(--line); stroke-width: 1; }
+.chart-gridline { stroke: #e7ebf0; stroke-width: 1; }
+.chart-gridline.vertical { stroke-dasharray: 2 4; }
+.chart-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-axis-label { fill: var(--ink-soft); font-size: 12px; font-weight: 600; }
+.calibration-reference { stroke: var(--ink-soft); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.calibration-reference-label { fill: var(--muted); font-size: 11px; }
+.calibration-point { outline: none; cursor: pointer; }
+.calibration-point-hit { fill: transparent; }
+.calibration-point-dot { fill: var(--blue); stroke: #fff; stroke-width: 3; transition: r .12s ease, fill .12s ease; }
+.calibration-point-label { fill: var(--ink-soft); font-size: 11px; font-weight: 600; pointer-events: none; }
+.calibration-point.is-hovered .calibration-point-dot { fill: var(--ink); stroke: #bfdbfe; }
+.calibration-point:focus .calibration-point-dot { fill: var(--ink); stroke: #bfdbfe; }
+.calibration-hover-readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; min-height: 23px; margin-top: 4px; color: var(--muted); font-size: 13px; }
+.calibration-hover-readout strong { color: var(--ink-soft); font-weight: 600; }
+.calibration-hover-readout span { color: var(--muted); }
+.calibration-chart figcaption, .comparison-chart figcaption { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.comparison-panel .panel-header { margin-bottom: 18px; }
+.comparison-chart { margin: 0; }
+.comparison-axis { display: flex; justify-content: space-between; margin: 0 112px 6px 106px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.comparison-rows { border-top: 1px solid var(--line); }
+.comparison-row { display: grid; grid-template-columns: minmax(88px, 106px) minmax(0, 1fr) 106px; align-items: center; gap: 10px; min-height: 62px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.comparison-row-label { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.comparison-row-label strong { color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.comparison-row-label small { color: var(--muted); font-size: 11px; }
+.comparison-track { position: relative; display: block; height: 20px; overflow: visible; border-radius: 5px; background: #f1f5f9; box-shadow: 0 0 0 1px var(--line); }
+.comparison-fill { display: block; height: 100%; border-radius: inherit; background: var(--blue); }
+.comparison-marker { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--ink-soft); box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); transform: translateX(-50%); }
+.comparison-marker::after { position: absolute; top: -4px; left: 50%; width: 8px; height: 8px; border-radius: 2px; background: var(--ink-soft); content: ""; transform: translateX(-50%) rotate(45deg); }
+.comparison-values { display: flex; min-width: 0; flex-direction: column; gap: 1px; text-align: right; }
+.comparison-values strong { color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.comparison-values span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .odds-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .65fr); gap: 16px; margin-bottom: 16px; }
 .odds-band-panel, .odds-method-panel, .odds-team-panel, .odds-games-panel { min-width: 0; }
 .odds-band-table, .odds-team-table, .odds-game-table { min-width: 760px; }
@@ -426,7 +444,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .search-field { grid-column: span 2; }
   .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .primary-grid, .secondary-grid, .odds-grid { grid-template-columns: 1fr; }
+  .primary-grid, .secondary-grid, .odds-grid, .odds-visual-grid { grid-template-columns: 1fr; }
   .workflow-strip { align-items: flex-start; flex-direction: column; }
   .workflow-steps { width: 100%; }
 }
@@ -443,8 +461,9 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   .last-check-card { width: 100%; margin-top: 17px; }
   .calibration-header { align-items: stretch; flex-direction: column; }
   .calibration-takeaway { min-width: 0; }
-  .calibration-axis { margin-left: 108px; }
-  .calibration-row { grid-template-columns: minmax(88px, 108px) minmax(0, 1fr); gap: 10px; }
+  .calibration-plot { min-height: 0; }
+  .comparison-axis { margin-left: 96px; margin-right: 96px; }
+  .comparison-row { grid-template-columns: minmax(80px, 96px) minmax(0, 1fr) 96px; gap: 8px; }
   .dataset-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
   .dataset-bar-title { min-width: 0; }
   .dataset-scope { justify-self: end; }

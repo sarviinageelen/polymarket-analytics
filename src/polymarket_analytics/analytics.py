@@ -977,9 +977,20 @@ def odds_performance(
             favorite_price = (price_a, price_b)[favorite_index] if favorite_index is not None else None
             underdog_price = (price_b, price_a)[favorite_index] if favorite_index is not None else None
             winner = str(market.get("winner") or "")
-            favorite_result = "tie" if resolution == "tie" else (
-                "win" if favorite_team and _same_team(winner, favorite_team) else "loss" if favorite_team else None
-            )
+
+            def result_for(selected_team: str | None) -> str | None:
+                if not selected_team:
+                    return None
+                if resolution == "tie":
+                    return "tie"
+                return "win" if _same_team(winner, selected_team) else "loss"
+
+            favorite_result = result_for(favorite_team)
+            underdog_result = result_for(underdog_team)
+            home_price = price_a if home_team and _same_team(home_team, team_a) else price_b if home_team else None
+            away_price = price_a if away_team and _same_team(away_team, team_a) else price_b if away_team else None
+            home_result = result_for(home_team)
+            away_result = result_for(away_team)
             games.append({
                 "condition_id": condition_id,
                 "event_date": market.get("event_date"),
@@ -997,8 +1008,15 @@ def odds_performance(
                 "underdog_team": underdog_team,
                 "underdog_price": underdog_price,
                 "favorite_result": favorite_result,
+                "underdog_result": underdog_result,
                 "home_team": home_team,
                 "away_team": away_team,
+                "home_price": home_price,
+                "home_implied_pct": round(home_price * 100, 2) if home_price is not None else None,
+                "home_result": home_result,
+                "away_price": away_price,
+                "away_implied_pct": round(away_price * 100, 2) if away_price is not None else None,
+                "away_result": away_result,
                 "home_away_status": "available" if home_team and away_team else "unavailable",
             })
 
@@ -1025,7 +1043,9 @@ def odds_performance(
                     continue
                 venue = "home" if game["home_team"] and _same_team(selected_team, game["home_team"]) else "away" if game["away_team"] and _same_team(selected_team, game["away_team"]) else None
                 team_role = "favorite" if _same_team(selected_team, game["favorite_team"]) else "underdog"
-                if role not in {"all", "favorite", "underdog"} and venue != role:
+                if role in {"favorite", "underdog"} and team_role != role:
+                    continue
+                if role in {"home", "away"} and venue != role:
                     continue
                 won = _same_team(game["winner"], selected_team)
                 team_rows.append({

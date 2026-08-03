@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,7 +9,7 @@ except ModuleNotFoundError:  # pragma: no cover - the base test environment is i
     duckdb = None
 
 if duckdb is not None:
-    from polymarket_analytics.analytics import catalog, game_trends, leaderboard, trader_detail
+    from polymarket_analytics.analytics import catalog, game_trends, leaderboard, odds_performance, trader_detail
 
 
 @unittest.skipIf(duckdb is None, "DuckDB analytics dependencies are not installed")
@@ -16,6 +17,21 @@ class AnalyticsTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "analytics.duckdb"
+        self.events_path = Path(self.temp_dir.name) / "events.json"
+        self.events_path.write_text(json.dumps([
+            {
+                "id": "1",
+                "startTime": "2025-01-01T00:00:00Z",
+                "teams": [{"name": "Team A", "ordering": "home"}, {"name": "Team B", "ordering": "away"}],
+                "markets": [{"conditionId": "g1", "gameStartTime": "2025-01-01T00:00:00Z", "outcomes": ["Team A", "Team B"]}],
+            },
+            {
+                "id": "2",
+                "startTime": "2025-01-02T00:00:00Z",
+                "teams": [{"name": "Team A", "ordering": "away"}, {"name": "Team C", "ordering": "home"}],
+                "markets": [{"conditionId": "g2", "gameStartTime": "2025-01-02T00:00:00Z", "outcomes": ["Team A", "Team C"]}],
+            },
+        ]), encoding="utf-8")
         conn = duckdb.connect(str(self.db_path))
         conn.execute(
             """
@@ -31,7 +47,7 @@ class AnalyticsTests(unittest.TestCase):
             """
             CREATE TABLE trade_fact (
                 wallet VARCHAR, side VARCHAR, size DOUBLE, price DOUBLE, condition_id VARCHAR,
-                outcome_index INTEGER, trade_timestamp BIGINT, trade_time_utc TIMESTAMP
+                outcome_index INTEGER, trade_timestamp BIGINT, trade_time_utc TIMESTAMP, transaction_hash VARCHAR
             )
             """
         )
@@ -62,14 +78,21 @@ class AnalyticsTests(unittest.TestCase):
             ],
         )
         conn.executemany(
-            "INSERT INTO trade_fact VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO trade_fact VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
-                ("0x1", "BUY", 10, 0.6, "g1", 0, 1, "2025-01-01 00:01:00"),
-                ("0x1", "BUY", 10, 0.6, "g2", 1, 2, "2025-01-02 00:01:00"),
-                ("0x1", "BUY", 10, 0.55, "g3", 0, 3, "2025-01-03 00:01:00"),
-                ("0x2", "BUY", 10, 0.6, "g1", 0, 1, "2025-01-01 00:02:00"),
-                ("0x2", "BUY", 10, 0.6, "g2", 1, 2, "2025-01-02 00:02:00"),
-                ("0x2", "BUY", 10, 0.55, "g3", 1, 3, "2025-01-03 00:02:00"),
+                ("0x1", "BUY", 10, 0.6, "g1", 0, 1, "2025-01-01 00:01:00", "g1-a1"),
+                ("0x1", "BUY", 10, 0.6, "g2", 1, 2, "2025-01-02 00:01:00", "g2-b1"),
+                ("0x1", "BUY", 10, 0.55, "g3", 0, 3, "2025-01-03 00:01:00", "g3-a1"),
+                ("0x2", "BUY", 10, 0.6, "g1", 0, 1, "2025-01-01 00:02:00", "g1-a2"),
+                ("0x2", "BUY", 10, 0.6, "g2", 1, 2, "2025-01-02 00:02:00", "g2-b2"),
+                ("0x2", "BUY", 10, 0.55, "g3", 1, 3, "2025-01-03 00:02:00", "g3-b2"),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO trade_fact VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                ("0x3", "BUY", 10, 0.4, "g1", 1, 1, "2025-01-01 00:03:00", "g1-b"),
+                ("0x3", "BUY", 10, 0.4, "g2", 0, 2, "2025-01-02 00:03:00", "g2-a"),
             ],
         )
         conn.close()
@@ -93,6 +116,21 @@ class AnalyticsTests(unittest.TestCase):
         detail = trader_detail(self.db_path, "0x1")
         self.assertEqual(detail["record"], "1-1")
         self.assertEqual(len(detail["trend"]), 2)
+
+    def test_odds_performance_reconciles_price_roles_and_venue(self):
+        result = odds_performance(self.db_path, self.events_path)
+        self.assertEqual(result["summary"]["selected_games"], 2)
+        self.assertEqual(result["summary"]["favorite_wins"], 2)
+        self.assertEqual(result["summary"]["home_away_games"], 2)
+        self.assertEqual(result["games"][0]["home_implied_pct"], 60.0)
+        self.assertEqual(result["games"][0]["away_result"], "loss")
+
+        favorite_only = odds_performance(self.db_path, self.events_path, role="favorite")
+        underdog_only = odds_performance(self.db_path, self.events_path, role="underdog")
+        self.assertTrue(all(row["underdog"]["games"] == 0 for row in favorite_only["team_rows"]))
+        self.assertTrue(all(row["favorite"]["games"] == 0 for row in underdog_only["team_rows"]))
+        self.assertEqual(sum(row["favorite"]["games"] for row in favorite_only["team_rows"]), 2)
+        self.assertEqual(sum(row["underdog"]["games"] for row in underdog_only["team_rows"]), 2)
 
 
 if __name__ == "__main__":
