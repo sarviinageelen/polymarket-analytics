@@ -35,3 +35,7 @@ web/node_modules/
 web/dist/
 web/.wrangler/
 web/.next/
+
+# Local design skills installed for agent-assisted development.
+.agents/
+skills-lock.json

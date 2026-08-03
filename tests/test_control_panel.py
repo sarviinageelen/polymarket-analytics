@@ -4,7 +4,9 @@ from scripts.control_panel_server import (
     build_pipeline_commands,
     interval_seconds,
     normalize_config,
+    parse_output_metrics,
     public_download_url,
+    redact_log_text,
 )
 
 
@@ -34,6 +36,13 @@ class ControlPanelTests(unittest.TestCase):
         url = public_download_url("wnba_2026", "agent/organize-documentation")
         self.assertIn("github.com/sarviinageelen/polymarket-analytics/raw/refs/heads/", url)
         self.assertTrue(url.endswith("reports/generated/wnba_2026_moneyline_picks.xlsx"))
+
+    def test_structured_log_helpers_keep_secrets_out(self):
+        self.assertEqual(parse_output_metrics('noise\n{"records": 12, "failed": 0}')['records'], 12)
+        redacted = redact_log_text("token=abc123 authorization: Bearer-secret password = hidden")
+        self.assertNotIn("abc123", redacted)
+        self.assertNotIn("Bearer-secret", redacted)
+        self.assertNotIn("hidden", redacted)
 
 if __name__ == "__main__":
     unittest.main()

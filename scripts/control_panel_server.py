@@ -9,6 +9,8 @@ are not accidentally exposed to the network.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import os
 import re
@@ -24,11 +26,18 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 WEB_DIST = ROOT / "web" / "dist"
 CONTROL_PANEL_DIR = ROOT / "data" / "control_panel"
 CONFIG_PATH = CONTROL_PANEL_DIR / "config.json"
 STATE_PATH = CONTROL_PANEL_DIR / "state.json"
 LOG_PATH = CONTROL_PANEL_DIR / "control_panel.log"
+RUN_LOG_DIR = CONTROL_PANEL_DIR / "runs"
+
+SENSITIVE_LOG_PATTERN = re.compile(
+    r"(?i)(api[_-]?key|token|authorization|cookie|password|secret|private[_-]?key)"
+    r"\s*[:=]\s*([^\s,;]+)"
+)
 
 
 SPORTS: dict[str, dict[str, Any]] = {
@@ -95,6 +104,29 @@ def write_json(path: Path, value: Any) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2, default=str), encoding="utf-8")
     temporary.replace(path)
+
+
+def redact_log_text(value: Any) -> str:
+    """Remove credential-like values before logs are persisted or returned."""
+
+    text = str(value)
+    return SENSITIVE_LOG_PATTERN.sub(lambda match: f"{match.group(1)}=<redacted>", text)
+
+
+def parse_output_metrics(output: str) -> dict[str, Any] | None:
+    """Extract the last JSON object emitted by a pipeline step, if present."""
+
+    for line in reversed(output.splitlines()):
+        candidate = line.strip()
+        if not candidate.startswith("{") or not candidate.endswith("}"):
+            continue
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
 
 
 def run_command(command: list[str], *, capture: bool = True) -> subprocess.CompletedProcess[str]:
@@ -185,6 +217,35 @@ def count_csv_rows(path: Path) -> int | None:
             return max(sum(1 for _ in handle) - 1, 0)
     except OSError:
         return None
+
+
+def analytics_db_path(sport: str) -> Path:
+    """Resolve the newest compatible local DuckDB snapshot for a sport."""
+
+    spec = SPORTS[sport]
+    primary = ROOT / spec["db"]
+    if primary.exists():
+        return primary
+    rebuilt = primary.with_name(f"{primary.stem}_rebuilt{primary.suffix}")
+    if rebuilt.exists():
+        return rebuilt
+    return primary
+
+
+def analytics_module() -> Any:
+    """Load DuckDB-backed analytics lazily so basic status remains lightweight."""
+
+    try:
+        from polymarket_analytics import analytics
+    except ModuleNotFoundError as exc:
+        if exc.name == "duckdb":
+            raise RuntimeError("analytics requires the DuckDB-enabled control-panel Python environment") from exc
+        raise
+    return analytics
+
+
+class RunCancelled(RuntimeError):
+    """Raised when a run is cancelled at a safe pipeline boundary."""
 
 
 def dataset_status(sport: str, config: dict[str, Any]) -> dict[str, Any]:
@@ -328,6 +389,7 @@ def build_pipeline_commands(sport: str, full_validation: bool) -> list[tuple[str
 class ControlPanel:
     def __init__(self) -> None:
         CONTROL_PANEL_DIR.mkdir(parents=True, exist_ok=True)
+        RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
         saved_config = read_json(CONFIG_PATH, {})
         self.config = normalize_config(saved_config if isinstance(saved_config, dict) else {})
         saved_state = read_json(STATE_PATH, {})
@@ -339,6 +401,7 @@ class ControlPanel:
         self.runtime.setdefault("next_run_at", None)
         self.lock = threading.RLock()
         self.stop_event = threading.Event()
+        self.cancel_requested: set[str] = set()
         self._log("control panel started")
         if self.config["enabled"] and not parse_iso(self.runtime.get("next_run_at")):
             self.runtime["next_run_at"] = (utc_now() + timedelta(seconds=interval_seconds(self.config))).isoformat()
@@ -354,7 +417,69 @@ class ControlPanel:
     def _log(self, message: str) -> None:
         CONTROL_PANEL_DIR.mkdir(parents=True, exist_ok=True)
         with LOG_PATH.open("a", encoding="utf-8") as handle:
-            handle.write(f"{iso_now()} {message}\n")
+            handle.write(f"{iso_now()} {redact_log_text(message)}\n")
+
+    def _run_event(
+        self,
+        run_id: str,
+        message: str,
+        *,
+        level: str = "info",
+        step: str | None = None,
+        **fields: Any,
+    ) -> None:
+        """Persist a structured, redacted event for a single refresh run."""
+
+        RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        event = {
+            "timestamp_utc": iso_now(),
+            "run_id": run_id,
+            "level": level,
+            "step": step,
+            "message": redact_log_text(message),
+        }
+        event.update({key: redact_log_text(value) if isinstance(value, str) else value for key, value in fields.items()})
+        path = RUN_LOG_DIR / f"{run_id}.jsonl"
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, default=str) + "\n")
+        self._log(f"[{run_id}] {level}: {message}")
+
+    def _run_log_events(
+        self,
+        run_id: str,
+        *,
+        level: str | None = None,
+        step: str | None = None,
+        search: str | None = None,
+    ) -> list[dict[str, Any]]:
+        path = RUN_LOG_DIR / f"{run_id}.jsonl"
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return []
+        output: list[dict[str, Any]] = []
+        needle = (search or "").strip().lower()
+        for line in lines:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                event = {"timestamp_utc": None, "level": "info", "message": line}
+            if level and event.get("level") != level:
+                continue
+            if step and event.get("step") != step:
+                continue
+            if needle and needle not in json.dumps(event, default=str).lower():
+                continue
+            output.append(event)
+        return output
+
+    def _retain_run_logs(self, keep: int = 40) -> None:
+        files = sorted(RUN_LOG_DIR.glob("*.jsonl"), key=lambda path: path.name, reverse=True)
+        for path in files[keep:]:
+            try:
+                path.unlink()
+            except OSError:
+                continue
 
     def log_tail(self, limit: int = 80) -> list[str]:
         try:
@@ -422,11 +547,13 @@ class ControlPanel:
                         "status": "running",
                         "started_at_utc": iso_now(),
                         "full_validation": validation_mode,
+                        "steps": [],
                     },
                 }
             )
+            self.cancel_requested.discard(run_id)
             self._persist()
-            self._log(f"starting {trigger} refresh for {selected}")
+            self._run_event(run_id, f"Starting {trigger} refresh for {selected}", step="Starting refresh")
             thread = threading.Thread(
                 target=self._run_job,
                 args=(run_id, selected, trigger, validation_mode),
@@ -439,32 +566,111 @@ class ControlPanel:
     def _set_step(self, step: str) -> None:
         with self.lock:
             self.runtime["current_step"] = step
+            if isinstance(self.runtime.get("last_run"), dict):
+                self.runtime["last_run"]["current_step"] = step
             self._persist()
 
     def _run_job(self, run_id: str, sport: str, trigger: str, full_validation: bool) -> None:
         started = utc_now()
         output_tail: list[str] = []
         pushed: dict[str, Any] = {"pushed": False, "reason": "auto-push disabled"}
+        steps: list[dict[str, Any]] = []
+
+        def close_active_step(status: str, error: str | None = None) -> None:
+            if not steps or steps[-1].get("status") != "running":
+                return
+            finished = utc_now()
+            steps[-1].update(
+                {
+                    "status": status,
+                    "finished_at_utc": finished.isoformat(),
+                    "duration_seconds": round((finished - parse_iso(steps[-1]["started_at_utc"])).total_seconds(), 1) if parse_iso(steps[-1].get("started_at_utc")) else None,
+                }
+            )
+            if error:
+                steps[-1]["error"] = redact_log_text(error)
+
         try:
             commands = build_pipeline_commands(sport, full_validation)
             for step, command in commands:
+                if run_id in self.cancel_requested:
+                    raise RunCancelled("run cancelled before the next pipeline step")
+                step_started = utc_now()
+                step_record = {
+                    "name": step,
+                    "status": "running",
+                    "started_at_utc": step_started.isoformat(),
+                }
+                steps.append(step_record)
+                with self.lock:
+                    if isinstance(self.runtime.get("last_run"), dict):
+                        self.runtime["last_run"]["steps"] = steps
+                        self._persist()
                 self._set_step(step)
-                self._log(f"[{run_id}] {step}: {' '.join(command)}")
+                self._run_event(
+                    run_id,
+                    f"Starting pipeline step: {step}",
+                    step=step,
+                    command=" ".join(command),
+                )
                 result = run_command(command)
                 output = result.stdout or ""
-                output_tail = (output_tail + output.splitlines())[-30:]
+                output_lines = [redact_log_text(line) for line in output.splitlines()]
+                output_tail = (output_tail + output_lines)[-30:]
+                metrics = parse_output_metrics(output)
                 if output:
-                    for line in output.splitlines()[-20:]:
-                        self._log(f"[{run_id}] {line}")
+                    for line in output_lines[-20:]:
+                        lowered = line.lower()
+                        level = "error" if "error" in lowered or "traceback" in lowered else "warning" if "warning" in lowered else "info"
+                        self._run_event(run_id, line, level=level, step=step)
+                step_finished = utc_now()
+                step_record.update(
+                    {
+                        "status": "success" if result.returncode == 0 else "failed",
+                        "finished_at_utc": step_finished.isoformat(),
+                        "duration_seconds": round((step_finished - step_started).total_seconds(), 1),
+                        "return_code": result.returncode,
+                        "metrics": metrics or {},
+                    }
+                )
+                with self.lock:
+                    if isinstance(self.runtime.get("last_run"), dict):
+                        self.runtime["last_run"]["steps"] = steps
+                        self._persist()
                 if result.returncode != 0:
+                    self._run_event(
+                        run_id,
+                        f"{step} failed with exit code {result.returncode}",
+                        level="error",
+                        step=step,
+                    )
                     raise RuntimeError(f"{step} failed with exit code {result.returncode}")
+                self._run_event(
+                    run_id,
+                    f"Completed pipeline step: {step}",
+                    step=step,
+                    duration_seconds=step_record["duration_seconds"],
+                )
 
             with self.lock:
                 auto_push = bool(self.config.get("auto_push"))
                 branch = str(self.config.get("push_branch") or current_branch())
             if auto_push:
+                if run_id in self.cancel_requested:
+                    raise RunCancelled("run cancelled before GitHub publication")
                 self._set_step("Commit and push updated artifacts")
+                push_started = utc_now()
+                steps.append({"name": "Commit and push updated artifacts", "status": "running", "started_at_utc": push_started.isoformat()})
                 pushed = self.push_outputs(sport, branch)
+                push_finished = utc_now()
+                steps[-1].update(
+                    {
+                        "status": "success",
+                        "finished_at_utc": push_finished.isoformat(),
+                        "duration_seconds": round((push_finished - push_started).total_seconds(), 1),
+                    }
+                )
+                self._run_event(run_id, "Published generated artifacts", step="Commit and push updated artifacts", commit=pushed.get("commit"))
 
             finished = utc_now()
             last_run = {
@@ -479,14 +685,37 @@ class ControlPanel:
                 "push": pushed,
                 "download_url": public_download_url(sport, self.config.get("push_branch")),
                 "output_tail": output_tail,
+                "steps": steps,
             }
-            self._log(f"[{run_id}] refresh complete")
+            self._run_event(run_id, "Refresh complete", step="Complete")
             self._finish_run(last_run)
+        except RunCancelled as exc:
+            finished = utc_now()
+            error = str(exc)
+            close_active_step("cancelled", error)
+            self._run_event(run_id, error, level="warning", step=self.runtime.get("current_step"))
+            self._finish_run(
+                {
+                    "id": run_id,
+                    "sport": sport,
+                    "trigger": trigger,
+                    "status": "cancelled",
+                    "started_at_utc": started.isoformat(),
+                    "finished_at_utc": finished.isoformat(),
+                    "duration_seconds": round((finished - started).total_seconds(), 1),
+                    "full_validation": full_validation,
+                    "error": error,
+                    "output_tail": output_tail,
+                    "steps": steps,
+                    "download_url": public_download_url(sport, self.config.get("push_branch")),
+                }
+            )
         except Exception as exc:  # noqa: BLE001 - the UI needs a durable error state
             finished = utc_now()
             error = f"{type(exc).__name__}: {exc}"
-            self._log(f"[{run_id}] refresh failed: {error}")
-            self._log(traceback.format_exc())
+            close_active_step("failed", error)
+            self._run_event(run_id, f"Refresh failed: {error}", level="error", step=self.runtime.get("current_step"))
+            self._run_event(run_id, traceback.format_exc(), level="error", step=self.runtime.get("current_step"))
             self._finish_run(
                 {
                     "id": run_id,
@@ -499,6 +728,7 @@ class ControlPanel:
                     "full_validation": full_validation,
                     "error": error,
                     "output_tail": output_tail,
+                    "steps": steps,
                     "download_url": public_download_url(sport, self.config.get("push_branch")),
                 }
             )
@@ -517,6 +747,8 @@ class ControlPanel:
             else:
                 self.runtime["next_run_at"] = None
             self._persist()
+            self.cancel_requested.discard(str(last_run.get("id")))
+            self._retain_run_logs()
 
     def push_outputs(self, sport: str, branch: str) -> dict[str, Any]:
         if branch != current_branch():
@@ -552,6 +784,81 @@ class ControlPanel:
         revision = (run_command(["git", "rev-parse", "HEAD"]).stdout or "").strip()
         self._log(f"pushed {SPORTS[sport]['label']} artifacts at {revision}")
         return {"pushed": True, "commit": revision, "branch": branch}
+
+    def find_run(self, run_id: str) -> dict[str, Any] | None:
+        with self.lock:
+            current = self.runtime.get("last_run")
+            if isinstance(current, dict) and current.get("id") == run_id:
+                return json.loads(json.dumps(current, default=str))
+            for item in self.runtime.get("history", []):
+                if isinstance(item, dict) and item.get("id") == run_id:
+                    return json.loads(json.dumps(item, default=str))
+        return None
+
+    def run_detail(
+        self,
+        run_id: str,
+        *,
+        level: str | None = None,
+        step: str | None = None,
+        search: str | None = None,
+    ) -> dict[str, Any]:
+        run = self.find_run(run_id)
+        if not run:
+            raise ValueError(f"run not found: {run_id}")
+        run["logs"] = self._run_log_events(run_id, level=level, step=step, search=search)
+        return run
+
+    def retry_run(self, run_id: str) -> dict[str, Any]:
+        run = self.find_run(run_id)
+        if not run:
+            raise ValueError(f"run not found: {run_id}")
+        if run.get("status") == "running":
+            raise RuntimeError("a running refresh cannot be retried")
+        return self.start_job(
+            sport=str(run.get("sport")),
+            trigger="retry",
+            full_validation=bool(run.get("full_validation")),
+        )
+
+    def cancel_run(self, run_id: str) -> dict[str, Any]:
+        with self.lock:
+            current = self.runtime.get("last_run")
+            if not isinstance(current, dict) or current.get("id") != run_id or not self.runtime.get("running"):
+                raise ValueError("only the active run can be cancelled")
+            self.cancel_requested.add(run_id)
+            step = self.runtime.get("current_step")
+        self._run_event(run_id, "Cancellation requested; the current subprocess will finish safely", level="warning", step=step)
+        return {"accepted": True, "run_id": run_id, "message": "Cancellation will occur at the next safe pipeline boundary."}
+
+    def run_log_text(self, run_id: str, *, plain: bool = False, **filters: Any) -> str:
+        events = self._run_log_events(run_id, **filters)
+        if plain:
+            return "\n".join(
+                f"{event.get('timestamp_utc', '')} [{event.get('level', 'info')}] {event.get('step') or ''} {event.get('message', '')}".strip()
+                for event in events
+            )
+        return "\n".join(json.dumps(event, default=str) for event in events)
+
+    def analytics_catalog(self, sport: str) -> dict[str, Any]:
+        if sport not in SPORTS:
+            raise ValueError(f"unsupported sport: {sport}")
+        return analytics_module().catalog(analytics_db_path(sport))
+
+    def analytics_leaderboard(self, sport: str, **params: Any) -> dict[str, Any]:
+        if sport not in SPORTS:
+            raise ValueError(f"unsupported sport: {sport}")
+        return analytics_module().leaderboard(analytics_db_path(sport), **params)
+
+    def analytics_trader(self, sport: str, wallet: str, *, limit: int = 50) -> dict[str, Any]:
+        if sport not in SPORTS:
+            raise ValueError(f"unsupported sport: {sport}")
+        return analytics_module().trader_detail(analytics_db_path(sport), wallet, limit=limit)
+
+    def analytics_game_trends(self, sport: str, condition_id: str) -> dict[str, Any]:
+        if sport not in SPORTS:
+            raise ValueError(f"unsupported sport: {sport}")
+        return analytics_module().game_trends(analytics_db_path(sport), condition_id)
 
     def status(self) -> dict[str, Any]:
         with self.lock:
@@ -605,12 +912,56 @@ class RequestHandler(BaseHTTPRequestHandler):
             raise ValueError("request body must be a JSON object")
         return payload
 
+    @staticmethod
+    def _query_value(query: dict[str, list[str]], key: str, default: Any = None) -> Any:
+        values = query.get(key)
+        return values[0] if values else default
+
+    @staticmethod
+    def _query_bool(query: dict[str, list[str]], key: str, default: bool = False) -> bool:
+        value = str(RequestHandler._query_value(query, key, str(default))).lower()
+        return value in {"1", "true", "yes", "on"}
+
+    def _send_csv(self, rows: list[dict[str, Any]], filename: str) -> None:
+        output = io.StringIO()
+        fields: list[str] = []
+        for row in rows:
+            for field in row:
+                if field not in fields:
+                    fields.append(field)
+        writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+        body = output.getvalue().encode("utf-8")
+        self.send_response(200)
+        self._headers("text/csv; charset=utf-8", len(body))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_text_attachment(self, body_text: str, filename: str, content_type: str) -> None:
+        body = body_text.encode("utf-8")
+        self.send_response(200)
+        self._headers(content_type, len(body))
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
         self._headers("text/plain", 0)
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        try:
+            self._do_get()
+        except (ValueError, RuntimeError) as exc:
+            self._send_json({"error": str(exc)}, 409 if isinstance(exc, RuntimeError) else 400)
+        except Exception as exc:  # noqa: BLE001 - return a safe API error instead of a blank connection
+            self.controller._log(f"GET {self.path} failed: {type(exc).__name__}: {exc}")
+            self._send_json({"error": f"{type(exc).__name__}: {redact_log_text(exc)}"}, 500)
+
+    def _do_get(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/status":
             self._send_json(self.controller.status())
@@ -626,6 +977,82 @@ class RequestHandler(BaseHTTPRequestHandler):
                 limit = 80
             self._send_json({"lines": self.controller.log_tail(limit)})
             return
+        if parsed.path == "/api/runs":
+            status = self.controller.status()
+            self._send_json({"runs": status.get("runtime", {}).get("history", []), "active": status.get("runtime", {}).get("last_run")})
+            return
+        if parsed.path.startswith("/api/runs/"):
+            parts = [unquote(part) for part in parsed.path.split("/") if part]
+            if len(parts) >= 3:
+                run_id = parts[2]
+                query = parse_qs(parsed.query)
+                filters = {
+                    "level": self._query_value(query, "level"),
+                    "step": self._query_value(query, "step"),
+                    "search": self._query_value(query, "search"),
+                }
+                if len(parts) == 4 and parts[3] == "logs":
+                    plain = self._query_value(query, "format", "json") == "text"
+                    text = self.controller.run_log_text(run_id, plain=plain, **filters)
+                    content_type = "text/plain; charset=utf-8" if plain else "application/x-ndjson; charset=utf-8"
+                    suffix = "txt" if plain else "jsonl"
+                    self._send_text_attachment(text, f"{run_id}.{suffix}", content_type)
+                    return
+                self._send_json({"run": self.controller.run_detail(run_id, **filters)})
+                return
+        if parsed.path.startswith("/api/analytics/"):
+            query = parse_qs(parsed.query)
+            sport = str(self._query_value(query, "sport", self.controller.config.get("sport")))
+            if parsed.path == "/api/analytics/catalog":
+                self._send_json(self.controller.analytics_catalog(sport))
+                return
+            if parsed.path == "/api/analytics/leaderboard":
+                try:
+                    page = int(self._query_value(query, "page", 1))
+                    page_size = int(self._query_value(query, "page_size", 25))
+                    min_picks = int(self._query_value(query, "min_picks", 5))
+                except ValueError as exc:
+                    raise ValueError("page, page_size, and min_picks must be whole numbers") from exc
+                leaderboard_params = {
+                    "dimension": str(self._query_value(query, "dimension", "team")),
+                    "team": self._query_value(query, "team"),
+                    "condition_id": self._query_value(query, "condition_id"),
+                    "sample": str(self._query_value(query, "sample", "season")),
+                    "min_picks": min_picks,
+                    "include_no_pick": self._query_bool(query, "include_no_pick"),
+                    "search": str(self._query_value(query, "search", "")),
+                    "sort": str(self._query_value(query, "sort", "confidence_score")),
+                    "direction": str(self._query_value(query, "direction", "desc")),
+                    "page": page,
+                    "page_size": page_size,
+                    "start_date": self._query_value(query, "start_date"),
+                    "end_date": self._query_value(query, "end_date"),
+                }
+                result = self.controller.analytics_leaderboard(sport, **leaderboard_params)
+                if self._query_bool(query, "export"):
+                    export_result = self.controller.analytics_leaderboard(sport, **{**leaderboard_params, "export_all": True})
+                    self._send_csv(export_result.get("rows", []), f"{sport}_leaderboard.csv")
+                else:
+                    self._send_json(result)
+                return
+            if parsed.path == "/api/analytics/trader":
+                wallet = str(self._query_value(query, "wallet", "")).strip()
+                if not wallet:
+                    raise ValueError("wallet is required")
+                self._send_json(
+                    self.controller.analytics_trader(
+                        sport,
+                        wallet,
+                        limit=int(self._query_value(query, "limit", 50)),
+                    )
+                )
+                return
+            if parsed.path == "/api/analytics/game-trends":
+                condition_id = str(self._query_value(query, "condition_id", "")).strip()
+                if not condition_id:
+                    raise ValueError("condition_id is required")
+                self._send_json(self.controller.analytics_game_trends(sport, condition_id))
+                return
         self._serve_static(parsed.path)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -644,6 +1071,14 @@ class RequestHandler(BaseHTTPRequestHandler):
                 )
                 self._send_json(result, 202)
                 return
+            if parsed.path.startswith("/api/runs/"):
+                parts = [unquote(part) for part in parsed.path.split("/") if part]
+                if len(parts) == 4 and parts[3] == "retry":
+                    self._send_json(self.controller.retry_run(parts[2]), 202)
+                    return
+                if len(parts) == 4 and parts[3] == "cancel":
+                    self._send_json(self.controller.cancel_run(parts[2]), 202)
+                    return
             self._send_json({"error": "not found"}, 404)
         except (ValueError, RuntimeError) as exc:
             self._send_json({"error": str(exc)}, 409 if isinstance(exc, RuntimeError) else 400)

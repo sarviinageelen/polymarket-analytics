@@ -12,7 +12,7 @@ From the repository root:
 ```bash
 npm --prefix web install
 npm --prefix web run build
-python3 scripts/control_panel_server.py
+.venv-nav/bin/python scripts/control_panel_server.py
 ```
 
 Open <http://127.0.0.1:8787>. The server binds to localhost by default. The
@@ -52,6 +52,16 @@ The panel exposes both manual and scheduled runs through the same API:
 - `POST /api/run` — start a manual refresh;
 - `GET /api/logs?tail=80` — read the recent controller log.
 
+Analytics and run-detail endpoints are documented in the
+[analytics guide](analytics.md). The run history endpoints include
+`GET /api/runs`, `GET /api/runs/{run_id}`, `GET /api/runs/{run_id}/logs`,
+`POST /api/runs/{run_id}/retry`, and `POST /api/runs/{run_id}/cancel`.
+
+Run-specific logs are stored as redacted JSON Lines files under the ignored
+`data/control_panel/runs/` directory. The controller retains a bounded number
+of run log files. API keys, tokens, authorization headers, cookies, passwords,
+and private-key-like values are redacted before persistence.
+
 ## Auto-push behavior
 
 Auto-push is deliberately narrow and guarded:
@@ -87,3 +97,16 @@ DNS from the IP.
 
 The frontend is kept separate in `web/`, uses Kumo, and can later be moved to
 an authenticated Cloudflare Worker if a shared remote control plane is needed.
+
+## Rollback backup
+
+Before the analytics expansion, the stable control-panel state was tagged and
+pushed as `backup/control-panel-ui-20260803`. To restore that exact state in a
+working copy:
+
+```bash
+git switch --detach backup/control-panel-ui-20260803
+```
+
+Create a new branch from the tag if you need to continue development after
+restoring it.
