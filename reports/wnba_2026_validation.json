@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-04T02:13:58.345237+00:00",
+  "generated_at_utc": "2026-08-04T02:51:38.241691+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-04T02:13:01.854914+00:00",
+      "generated_at_utc": "2026-08-04T02:50:40.800983+00:00",
       "market_count": 265,
-      "trade_count": 835827,
-      "ledger_count": 103347
+      "trade_count": 837519,
+      "ledger_count": 103442
     },
     "market_status_resolution_counts": {
       "closed:resolved": 226,
@@ -21,7 +21,7 @@
     "ledger_result_counts": {
       "flat": 237,
       "loss": 45502,
-      "unsettled": 541,
+      "unsettled": 636,
       "win": 57067
     },
     "event_cache_events": 265,
@@ -59,11 +59,11 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_unique_trades": 835827,
-        "parquet_raw_trades": 864946,
-        "parquet_unique_trades": 835827,
-        "duckdb_trades": 835827,
-        "refresh_duplicate_rows": 29119
+        "manifest_unique_trades": 837519,
+        "parquet_raw_trades": 868849,
+        "parquet_unique_trades": 837519,
+        "duckdb_trades": 837519,
+        "refresh_duplicate_rows": 31330
       }
     },
     {
@@ -98,7 +98,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 103347
+        "ledger_rows": 103442
       }
     },
     {
@@ -129,7 +129,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-04T02:13:46.884306+00:00"
+        "capture_time_utc": "2026-08-04T02:51:26.032903+00:00"
       }
     },
     {
@@ -181,7 +181,7 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 29029,
+        "hyperlinks_to_profiles": 29071,
         "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
         "table_counts": {
           "Read Me": 0,
