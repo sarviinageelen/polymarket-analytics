@@ -1,42 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  ArrowClockwise,
+  Activity as Pulse,
   ArrowDown,
   ArrowUp,
   ArrowUpRight,
-  CalendarBlank,
+  Calendar as CalendarBlank,
   ChartLine,
   Check,
-  CheckCircle,
+  CircleAlert as WarningCircle,
+  CircleCheck as CheckCircle,
+  CircleUser as UserCircle,
   Clipboard,
   Clock,
-  CloudArrowUp,
+  CloudUpload as CloudArrowUp,
   Copy,
   Database,
-  DownloadSimple,
-  FileCsv,
+  Download as DownloadSimple,
+  FileDown as FileCsv,
+  FileSpreadsheet as FileXls,
   FileText,
-  FileXls,
   Funnel,
-  GithubLogo,
+  GitBranch as GithubLogo,
   Info,
-  Lightning,
-  MagnifyingGlass,
   Play,
-  Pulse,
+  RefreshCw as ArrowClockwise,
+  Search as MagnifyingGlass,
   ShieldCheck,
-  SlidersHorizontal,
-  Stop,
+  Square as Stop,
   Timer,
-  TrendUp,
+  TrendingUp as TrendUp,
   Trophy,
-  UserCircle,
-  WarningCircle,
   X,
-} from "@phosphor-icons/react";
-import { Badge, Button, Input, LayerCard, Switch } from "@cloudflare/kumo";
-import "@cloudflare/kumo/styles/standalone";
+  Zap as Lightning,
+} from "lucide-react";
+import { Badge, Button, Input, LayerCard, Switch } from "./components/ui";
 import "./styles.css";
 
 const API_BASE = (window.__POLYMARKET_API__ || "").replace(/\/$/, "");
@@ -56,13 +54,13 @@ const FALLBACK_SPORTS = [
 ];
 
 const TABS = [
-  { id: "updates", label: "Data updates", icon: CloudArrowUp },
-  { id: "team", label: "Best traders by team", icon: Trophy },
-  { id: "game", label: "Best traders by game", icon: ChartLine },
-  { id: "trader", label: "Trader trends", icon: UserCircle },
-  { id: "game-trends", label: "Game trends", icon: TrendUp },
-  { id: "odds", label: "Odds & results", icon: ChartLine },
-  { id: "runs", label: "Run history", icon: Clock },
+  { id: "updates", label: "Data updates", icon: CloudArrowUp, group: "operate" },
+  { id: "team", label: "Wallets by team", icon: Trophy, group: "explore" },
+  { id: "game", label: "Wallets by game", icon: ChartLine, group: "explore" },
+  { id: "trader", label: "Trader trends", icon: UserCircle, group: "explore" },
+  { id: "game-trends", label: "Game trends", icon: TrendUp, group: "explore" },
+  { id: "odds", label: "Odds & results", icon: ChartLine, group: "explore" },
+  { id: "runs", label: "Run history", icon: Clock, group: "operate" },
 ];
 
 const PIPELINE_STEPS = [
@@ -116,7 +114,7 @@ function formatDate(value) {
   if (!value) return "Not available";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  return date.toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 }
 
 function formatDateOnly(value) {
@@ -145,6 +143,23 @@ function badgeVariant(status) {
   return "warning";
 }
 
+function summarizeValidation(validation = {}) {
+  const pass = Number(validation.pass || 0);
+  const warning = Number(validation.warning || 0);
+  const fail = Number(validation.fail || 0);
+  const notRun = Number(validation.not_run || 0);
+  const total = pass + warning + fail + notRun;
+  const status = fail > 0 ? "failed" : warning > 0 ? "warning" : notRun > 0 ? "partial" : pass > 0 ? "passed" : "unknown";
+  const label = status === "failed" ? "Needs attention" : status === "warning" ? "Warnings to review" : status === "partial" ? "Partially checked" : status === "passed" ? "All checks passed" : "No report yet";
+  const detail = [
+    pass ? `${pass} passed` : null,
+    warning ? `${warning} warning${warning === 1 ? "" : "s"}` : null,
+    fail ? `${fail} failed` : null,
+    notRun ? `${notRun} not run` : null,
+  ].filter(Boolean).join(" · ");
+  return { pass, warning, fail, notRun, total, status, label, detail };
+}
+
 function buildQuery(path, values) {
   const params = new URLSearchParams();
   Object.entries(values).forEach(([key, value]) => {
@@ -170,7 +185,7 @@ function StatusBadge({ status, children }) {
 function MetricCard({ label, value, detail, icon: Icon, tone = "neutral" }) {
   return (
     <article className={`metric-card metric-${tone}`}>
-      <div className="metric-icon"><Icon size={20} weight="regular" /></div>
+      <div className="metric-icon" aria-hidden="true"><Icon size={18} /></div>
       <div className="metric-content">
         <span className="metric-label">{label}</span>
         <strong className="metric-value">{value}</strong>
@@ -185,7 +200,7 @@ function PanelHeader({ kicker, title, description, icon: Icon, children }) {
     <div className="panel-header">
       <div className="panel-heading-copy">
         <div className="panel-title-row">
-          {Icon && <span className="panel-title-icon"><Icon size={18} weight="regular" /></span>}
+          {Icon && <span className="panel-title-icon" aria-hidden="true"><Icon size={16} /></span>}
           <Kicker>{kicker}</Kicker>
         </div>
         <h2>{title}</h2>
@@ -209,32 +224,42 @@ function Alert({ type = "error", children, onDismiss }) {
 function PipelineSteps({ runtime }) {
   const activeIndex = PIPELINE_STEPS.findIndex(([name]) => name === runtime?.current_step);
   const isRunning = Boolean(runtime?.running);
-  const isComplete = !isRunning && runtime?.last_run?.status === "success";
-  const completedNames = new Set((runtime?.last_run?.steps || []).filter((step) => step.status === "success").map((step) => step.name));
+  const showDetailsByDefault = isRunning || !runtime?.last_run?.status || runtime?.last_run?.status === "failed";
+  const [detailsOpen, setDetailsOpen] = useState(showDetailsByDefault);
+  const stepRecords = new Map((runtime?.last_run?.steps || []).map((step) => [step.name, step]));
+  useEffect(() => {
+    if (isRunning || !runtime?.last_run?.status || runtime?.last_run?.status === "failed") setDetailsOpen(true);
+  }, [isRunning, runtime?.last_run?.id, runtime?.last_run?.status]);
 
   return (
-    <div className="pipeline-list" aria-label="Refresh pipeline progress">
-      {PIPELINE_STEPS.map(([name, detail], index) => {
-        const active = isRunning && index === activeIndex;
-        const complete = isComplete || completedNames.has(name) || (isRunning && activeIndex > -1 && index < activeIndex);
-        const skipped = !isRunning && runtime?.last_run?.status === "success" && !completedNames.has(name) && name === "Commit and push updated artifacts";
-        return (
-          <div className={`pipeline-step ${active ? "is-active" : ""} ${complete ? "is-complete" : ""} ${skipped ? "is-skipped" : ""}`} key={name}>
-            <span className="pipeline-marker">
-              {active ? <ArrowClockwise className="spin" size={15} /> : complete ? <Check size={15} /> : skipped ? <span className="pipeline-dash">—</span> : <span />}
-            </span>
-            <span className="pipeline-copy"><strong>{name}</strong><small>{detail}</small></span>
-          </div>
-        );
-      })}
-    </div>
+    <details className="pipeline-details" open={detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
+      <summary className="pipeline-summary"><span>View update steps</span><span>{PIPELINE_STEPS.length} steps</span></summary>
+      <div className="pipeline-list" aria-label="Refresh pipeline progress">
+        {PIPELINE_STEPS.map(([name, detail], index) => {
+          const active = isRunning && index === activeIndex;
+          const recordStatus = stepRecords.get(name)?.status;
+          const status = recordStatus || (active ? "running" : isRunning && activeIndex > -1 && index < activeIndex ? "success" : !isRunning && runtime?.last_run?.status === "success" && name === "Commit and push updated artifacts" ? "skipped" : "pending");
+          const complete = status === "success";
+          const failed = status === "failed" || status === "cancelled";
+          const skipped = status === "skipped";
+          return (
+            <div className={`pipeline-step ${active ? "is-active" : ""} ${complete ? "is-complete" : ""} ${failed ? "is-failed" : ""} ${skipped ? "is-skipped" : ""}`} key={name}>
+              <span className="pipeline-marker" role="img" aria-label={`${name}: ${status}`}>
+                {status === "running" ? <ArrowClockwise className="spin" size={15} /> : complete ? <Check size={15} /> : failed ? <WarningCircle size={15} /> : skipped ? <span className="pipeline-dash">—</span> : <span />}
+              </span>
+              <span className="pipeline-copy"><strong>{name}</strong><small>{detail}</small></span>
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
-function ModeOption({ active, icon: Icon, title, description, badge, onClick }) {
+function ModeOption({ active, icon: Icon, title, description, badge, onClick, disabled = false }) {
   return (
-    <button type="button" className={`mode-option ${active ? "is-selected" : ""}`} aria-pressed={active} onClick={onClick}>
-      <span className="mode-option-icon"><Icon size={19} weight="regular" /></span>
+    <button type="button" className={`mode-option ${active ? "is-selected" : ""}`} aria-pressed={active} onClick={onClick} disabled={disabled}>
+      <span className="mode-option-icon" aria-hidden="true"><Icon size={17} /></span>
       <span className="mode-option-copy">
         <span className="mode-option-title">{title}{badge && <Badge variant={active ? "success" : "neutral"}>{badge}</Badge>}</span>
         <span className="mode-option-description">{description}</span>
@@ -259,12 +284,14 @@ function DataUpdatesView({
   saving,
   formDirty,
   validationUrl,
+  dataReady,
 }) {
   const lastRun = runtime.last_run?.sport === selected?.id ? runtime.last_run : null;
-  const qualityStatus = validation.fail > 0 ? "failed" : validation.not_run > 0 ? "partial" : validation.pass > 0 ? "passed" : "unknown";
-  const qualityLabel = qualityStatus === "failed" ? "Needs attention" : qualityStatus === "partial" ? "Partially checked" : qualityStatus === "passed" ? "All checks passed" : "No report yet";
-  const totalChecks = Number(validation.pass || 0) + Number(validation.warning || 0) + Number(validation.fail || 0) + Number(validation.not_run || 0);
-  const externalStatus = validation.not_run > 0 ? "Not fully run" : validation.fail > 0 ? "Failed" : validation.pass > 0 ? "Passed" : "Not available";
+  const validationSummary = summarizeValidation(validation);
+  const qualityStatus = validationSummary.status;
+  const qualityLabel = validationSummary.label;
+  const totalChecks = validationSummary.total;
+  const externalStatus = validationSummary.notRun > 0 ? "Not fully run" : validationSummary.fail > 0 ? "Failed" : validationSummary.warning > 0 ? "Warnings" : validationSummary.pass > 0 ? "Passed" : "Not available";
 
   return (
     <>
@@ -272,52 +299,53 @@ function DataUpdatesView({
         <div>
           <Kicker>Data operations</Kicker>
           <h1>Update sports data</h1>
-          <p className="page-lede">Choose a dataset, run the refresh, verify the result, and download the latest workbook.</p>
+          <p className="page-lede">Refresh a dataset, check the result, and download the latest workbook.</p>
         </div>
         <div className="last-check-card">
-          <span className="last-check-icon"><Pulse size={20} weight="regular" /></span>
-          <span><small>Controller check</small><strong>{formatDate(data?.controller?.now_utc)}</strong></span>
+          <span className="last-check-icon" aria-hidden="true"><Pulse size={18} /></span>
+          <span><small>Server status</small><strong>{formatDate(data?.controller?.now_utc)}</strong></span>
         </div>
       </section>
 
       <section className="dataset-bar" aria-label="Active dataset">
-        <div className="dataset-bar-title"><span className="dataset-bar-icon"><Database size={19} weight="regular" /></span><span><small>Active dataset</small><strong>{selected?.label || "—"}</strong></span></div>
+        <div className="dataset-bar-title"><span className="dataset-bar-icon" aria-hidden="true"><Database size={17} /></span><span><small>Active dataset</small><strong>{selected?.label || "—"}</strong></span></div>
         <span className="dataset-scope">Full-time moneyline</span>
         <div className="dataset-meta"><span><small>Snapshot</small><strong>{formatDate(selected?.generated_at_utc)}</strong></span><span><small>Branch</small><strong>{data?.project?.branch || "—"}</strong></span></div>
       </section>
 
       <section className="metrics-grid" aria-label="Dataset overview">
         <MetricCard label="Markets" value={formatNumber(counts.markets)} detail={`${formatNumber(counts.resolved_markets)} resolved`} icon={Database} tone="orange" />
-        <MetricCard label="Canonical trades" value={formatNumber(counts.trade_rows)} detail="Deduplicated analytical rows" icon={CloudArrowUp} tone="blue" />
+        <MetricCard label="Trades" value={formatNumber(counts.trade_rows)} detail="Deduplicated data rows" icon={CloudArrowUp} tone="blue" />
         <MetricCard label="Wallets" value={formatNumber(counts.bettors)} detail="Wallets with trades" icon={ChartLine} tone="violet" />
-        <MetricCard label="Candidates" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ games · 70% profit rate" icon={CheckCircle} tone="green" />
+        <MetricCard label="Candidates" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ games · 70%+ profitable" icon={CheckCircle} tone="green" />
       </section>
 
-      <section className="primary-grid">
+      <section className="dashboard-columns" aria-label="Data operations dashboard">
+        <div className="dashboard-column dashboard-column-main">
         <LayerCard className="panel update-panel">
-          <PanelHeader kicker="Update" title="Run a data update" description="The refresh saves local API data, rebuilds the analysis, and checks the generated workbook." icon={Lightning}>
+          <PanelHeader kicker="Update" title="Refresh a dataset" description="Fetch the latest markets, rebuild the local analysis, and check the workbook." icon={Lightning}>
             {runtime.running && <StatusBadge status="running">Working now</StatusBadge>}
           </PanelHeader>
 
           <div className="field-block">
             <label className="field-label" htmlFor="dataset-select">Dataset</label>
-            <select id="dataset-select" className="native-select" value={form.sport} onChange={(event) => setField("sport", event.target.value)} disabled={runtime.running}>
+            <select id="dataset-select" className="native-select" value={form.sport} onChange={(event) => setField("sport", event.target.value)} disabled={!dataReady || runtime.running}>
               {sports.map((sport) => <option key={sport.id} value={sport.id}>{sport.label}</option>)}
             </select>
             <span className="field-helper">Only full-game moneyline markets are collected.</span>
           </div>
 
           <div className="field-block validation-block">
-            <div className="field-label">Verification depth</div>
+            <div className="field-label">Validation</div>
             <div className="mode-grid">
-              <ModeOption active={!form.full_validation} icon={Timer} title="Local checks" description="Fast checks across the local files and database." badge="Routine" onClick={() => !runtime.running && setField("full_validation", false)} />
-              <ModeOption active={Boolean(form.full_validation)} icon={ShieldCheck} title="Full external checks" description="Adds Gamma, CLOB, ESPN, and Polygon comparisons." badge="Before publish" onClick={() => !runtime.running && setField("full_validation", true)} />
+              <ModeOption active={!form.full_validation} icon={Timer} title="Local checks" description="Fast checks across local files and the database." badge="Routine" disabled={!dataReady || runtime.running} onClick={() => setField("full_validation", false)} />
+              <ModeOption active={Boolean(form.full_validation)} icon={ShieldCheck} title="Full external checks" description="Adds Gamma, CLOB, ESPN, and Polygon comparisons." badge="More assurance" disabled={!dataReady || runtime.running} onClick={() => setField("full_validation", true)} />
             </div>
-            <div className="info-callout"><Info size={17} /><span><strong>Both modes fetch the same trades.</strong> Full checks add a slower review after the refresh.</span></div>
+            <div className="info-callout"><Info size={16} /><span><strong>Both modes fetch the same trades.</strong> Full checks add a slower review after the refresh.</span></div>
           </div>
 
           <div className="update-action-row">
-            <Button type="button" variant="primary" size="lg" onClick={runNow} loading={starting || runtime.running} disabled={starting || runtime.running}><ArrowClockwise size={18} /> Update {selected?.label || "dataset"}</Button>
+            <Button type="button" variant="primary" size="lg" onClick={runNow} loading={starting || runtime.running} disabled={!dataReady || starting || runtime.running}><ArrowClockwise size={18} /> Update {selected?.label || "dataset"}</Button>
             <span className="action-helper"><ArrowClockwise size={15} /> Settled markets use the local cache; open markets refresh.</span>
           </div>
 
@@ -328,32 +356,32 @@ function DataUpdatesView({
           <PipelineSteps runtime={{ ...runtime, last_run: lastRun }} />
         </LayerCard>
 
-        <div className="side-stack">
+        <LayerCard className="panel artifact-panel">
+          <div className="panel-header artifact-header"><div className="panel-heading-copy"><Kicker>Latest workbook</Kicker><h2>Excel download</h2></div>{selected?.workbook?.exists ? <Badge variant="success">Available</Badge> : <Badge variant="warning">Not generated</Badge>}</div>
+          <div className="artifact-main"><div className="file-icon"><FileXls size={24} /></div><div className="artifact-copy"><strong>{selected?.workbook?.name || "Workbook will appear after the first run"}</strong><span>Generated {formatDate(selected?.generated_at_utc)} · checked before publication.</span></div>{selected?.workbook?.download_url && selected?.workbook?.exists ? <a className="download-link" href={selected.workbook.download_url} target="_blank" rel="noreferrer">Open Excel <DownloadSimple size={17} /></a> : <span className="download-disabled">Waiting</span>}</div>
+          <div className="artifact-footer"><span><small>Scope</small><strong>{selected?.label} · full-time moneyline</strong></span><span><small>Validation</small><strong>{validationSummary.detail || "Not available"}</strong></span><span><small>Publication branch</small><strong>{data?.project?.branch || "—"}</strong></span></div>
+        </LayerCard>
+        </div>
+
+        <div className="dashboard-column dashboard-column-side">
           <LayerCard className="panel schedule-panel">
-            <PanelHeader kicker="Automation" title="Schedule refreshes" description="Scheduled runs require this server to stay online." icon={Clock} />
-            <div className="setting-row"><div><strong>Automatic refreshes</strong><span>Run the selected dataset on a cadence.</span></div><Switch checked={Boolean(form.enabled)} onCheckedChange={(checked) => setField("enabled", checked)} aria-label="Enable automatic refreshes" /></div>
-            <div className="schedule-fields"><Input label="Run every" type="number" min="1" max="10080" value={form.interval_value} onChange={(event) => setField("interval_value", event.target.value)} disabled={!form.enabled} /><label className="field-block unit-field"><span className="field-label">Unit</span><select className="native-select" value={form.interval_unit} onChange={(event) => setField("interval_unit", event.target.value)} disabled={!form.enabled}><option value="minutes">minutes</option><option value="hours">hours</option></select></label></div>
-            <div className="setting-row setting-row-borderless"><div><strong>Auto-push to GitHub</strong><span>Publish the workbook and validation report.</span></div><Switch checked={Boolean(form.auto_push)} onCheckedChange={(checked) => setField("auto_push", checked)} aria-label="Enable automatic GitHub publishing" /></div>
-            <Button type="button" variant="secondary" className="save-button" onClick={saveSchedule} loading={saving} disabled={saving || !formDirty}>Save settings</Button>
+            <PanelHeader kicker="Automation" title="Schedule refreshes" description="Keep this server online for scheduled runs." icon={Clock} />
+            <div className="setting-row"><div><strong>Automatic refreshes</strong><span>Run the selected dataset on a cadence.</span></div><Switch checked={Boolean(form.enabled)} onCheckedChange={(checked) => setField("enabled", checked)} aria-label="Enable automatic refreshes" disabled={!dataReady} /></div>
+            <div className="schedule-fields"><Input label="Run every" type="number" min="1" max="10080" value={form.interval_value} onChange={(event) => setField("interval_value", event.target.value)} disabled={!dataReady || !form.enabled} /><label className="field-block unit-field"><span className="field-label">Unit</span><select className="native-select" value={form.interval_unit} onChange={(event) => setField("interval_unit", event.target.value)} disabled={!dataReady || !form.enabled}><option value="minutes">minutes</option><option value="hours">hours</option></select></label></div>
+            <div className="setting-row setting-row-borderless"><div><strong>Auto-push to GitHub</strong><span>Publish the workbook and validation report.</span></div><Switch checked={Boolean(form.auto_push)} onCheckedChange={(checked) => setField("auto_push", checked)} aria-label="Enable automatic GitHub publishing" disabled={!dataReady} /></div>
+            <Button type="button" variant="secondary" className="save-button" onClick={saveSchedule} loading={saving} disabled={!dataReady || saving || !formDirty}>Save settings</Button>
             <div className="next-run"><CalendarBlank size={17} /><span><small>Next scheduled run</small><strong>{form.enabled ? formatDate(runtime.next_run_at) : "Scheduler paused"}</strong></span></div>
           </LayerCard>
 
           <LayerCard className={`panel quality-panel quality-${qualityStatus}`}>
-            <div className="quality-heading"><div><Kicker>Validation</Kicker><h2>Data confidence</h2></div><span className="quality-icon"><ShieldCheck size={21} /></span></div>
-            <div className="quality-score"><strong>{totalChecks ? `${validation.pass || 0} / ${totalChecks}` : "—"}</strong><span>{qualityLabel}</span></div>
-            <div className="quality-list"><div><span><i className="quality-dot local" />Local integrity</span><strong>{validation.fail ? `${validation.fail} failed` : validation.pass ? "Passed" : "Not available"}</strong></div><div><span><i className="quality-dot external" />External comparisons</span><strong>{externalStatus}</strong></div></div>
+            <div className="quality-heading"><div><Kicker>Validation</Kicker><h2>Validation coverage</h2></div><span className="quality-icon"><ShieldCheck size={21} /></span></div>
+            <div className="quality-score"><strong>{totalChecks ? `${validationSummary.pass} / ${totalChecks}` : "—"}</strong><span>{qualityLabel}</span></div>
+            <div className="quality-list"><div><span><i className="quality-dot local" />Local integrity</span><strong>{validationSummary.fail ? `${validationSummary.fail} failed` : validationSummary.warning ? `${validationSummary.warning} warning${validationSummary.warning === 1 ? "" : "s"}` : validationSummary.pass ? "Passed" : "Not available"}</strong></div><div><span><i className="quality-dot external" />External comparisons</span><strong>{externalStatus}</strong></div></div>
+            {validationSummary.detail && <p className="quality-detail">{validationSummary.detail}</p>}
             {validationUrl && <a className="text-link" href={validationUrl} target="_blank" rel="noreferrer">Open validation report <ArrowUpRight size={15} /></a>}
           </LayerCard>
+          <LatestRunCard run={runtime.last_run?.sport === selected?.id ? runtime.last_run : null} selected={selected} data={data} />
         </div>
-      </section>
-
-      <section className="secondary-grid">
-        <LayerCard className="panel artifact-panel">
-          <div className="panel-header artifact-header"><div className="panel-heading-copy"><Kicker>Latest workbook</Kicker><h2>Excel download</h2></div>{selected?.workbook?.exists ? <Badge variant="success">Available</Badge> : <Badge variant="warning">Not generated</Badge>}</div>
-          <div className="artifact-main"><div className="file-icon"><FileXls size={24} /></div><div className="artifact-copy"><strong>{selected?.workbook?.name || "Workbook will appear after the first run"}</strong><span>Generated {formatDate(selected?.generated_at_utc)} · checked before publication.</span></div>{selected?.workbook?.download_url && selected?.workbook?.exists ? <a className="download-link" href={selected.workbook.download_url} target="_blank" rel="noreferrer">Open Excel <DownloadSimple size={17} /></a> : <span className="download-disabled">Waiting</span>}</div>
-          <div className="artifact-footer"><span><small>Scope</small><strong>{selected?.label} · full-time moneyline</strong></span><span><small>Validation</small><strong>{validation.fail ? `${validation.fail} failed` : validation.pass ? `${validation.pass} checks passed` : "Not available"}</strong></span><span><small>Publication branch</small><strong>{data?.project?.branch || "—"}</strong></span></div>
-        </LayerCard>
-        <LatestRunCard run={runtime.last_run?.sport === selected?.id ? runtime.last_run : null} selected={selected} data={data} />
       </section>
     </>
   );
@@ -411,8 +439,8 @@ function LeaderboardTable({ result, dimension, filters, setFilters, onOpenTrader
   if (!result?.rows?.length) return <div className="table-state"><Clipboard size={27} /><strong>No qualifying traders found</strong><span>Lower the minimum sample or reset the filters to explore the available data.</span></div>;
   const target = result.target_game;
   return <>
-    <div className="table-summary"><div><Kicker>{dimension === "team" ? "Team leaderboard" : "Game leaderboard"}</Kicker><h2>{dimension === "team" ? `Traders involving ${filters.team}` : target?.title || "Selected game"}</h2><p>{result.total ? `${formatNumber(result.total)} traders match the current filters.` : "No matching traders."}</p></div><div className="table-summary-meta"><span><small>Ranking</small><strong>Wilson lower bound</strong></span><span><small>Market</small><strong>Moneyline</strong></span></div></div>
-    <div className="table-scroll"><table className="analytics-table"><caption className="sr-only">{dimension === "team" ? "Best traders by team" : "Best traders by game"}</caption><thead><tr><th>Rank</th><th>Trader</th><th><SortButton label="Record" column="wins" filters={filters} setFilters={setFilters} /></th><th><SortButton label="Picks" column="picks" filters={filters} setFilters={setFilters} /></th>{dimension === "game" && <><th>{target?.team_a || "Team A"}</th><th>{target?.team_b || "Team B"}</th><th>Combined accuracy</th></>}<th><SortButton label="Accuracy" column="raw_accuracy" filters={filters} setFilters={setFilters} /></th><th><SortButton label="Confidence score" column="confidence_score" filters={filters} setFilters={setFilters} /></th><th><SortButton label="ROI" column="roi" filters={filters} setFilters={setFilters} /></th><th>Avg entry price</th>{dimension === "game" && <th>Game P&amp;L</th>}<th>Current pick</th><th>Streak</th></tr></thead><tbody>{result.rows.map((row, index) => <tr key={row.wallet}><td className="rank-cell">{(result.page - 1) * result.page_size + index + 1}</td><td><TraderCell row={row} onOpenTrader={onOpenTrader} onCopy={onCopy} /></td><td><span className="record-cell">{row.record}</span></td><td>{formatNumber(row.picks)}</td>{dimension === "game" && <><td><AccuracyMeter value={row.team_a_accuracy_pct} sample={row.team_a_picks} /></td><td><AccuracyMeter value={row.team_b_accuracy_pct} sample={row.team_b_picks} /></td><td><AccuracyMeter value={row.combined_accuracy_pct} sample={Number(row.team_a_picks || 0) + Number(row.team_b_picks || 0)} /></td></>}<td><AccuracyMeter value={row.raw_accuracy_pct} sample={row.picks} /></td><td><AccuracyMeter value={row.confidence_score_pct} sample={row.picks} /></td><td>{formatPercent(row.roi_pct)}</td><td>{formatPercent(row.avg_entry_price == null ? null : Number(row.avg_entry_price) * 100)}</td>{dimension === "game" && <td>{formatMoney(row.target_pnl)}</td>}<td>{row.current_pick ? <span className="pick-chip">{row.current_pick}</span> : <span className="muted">No current pick</span>}</td><td><span className={Number(row.current_streak) < 0 ? "streak-loss" : "streak-win"}>{row.current_streak ? `${Math.abs(row.current_streak)} ${row.current_streak > 0 ? "W" : "L"}` : "—"}</span></td></tr>)}</tbody></table></div>
+    <div className="table-summary"><div><Kicker>{dimension === "team" ? "Team leaderboard" : "Game leaderboard"}</Kicker><h2>{dimension === "team" ? `Wallets involving ${filters.team}` : target?.title || "Selected game"}</h2><p>{result.total ? `${formatNumber(result.total)} wallets match the current filters.` : "No matching wallets."}</p></div><div className="table-summary-meta"><span><small>Ranking</small><strong>Wilson lower bound</strong></span><span><small>Market</small><strong>Moneyline</strong></span></div></div>
+    <div className="table-scroll"><table className="analytics-table"><caption className="sr-only">{dimension === "team" ? "Wallet performance by team" : "Wallet performance by game"}</caption><thead><tr><th scope="col">Rank</th><th scope="col">Wallet</th><th scope="col"><SortButton label="Record" column="wins" filters={filters} setFilters={setFilters} /></th><th scope="col"><SortButton label="Resolved ledgers" column="picks" filters={filters} setFilters={setFilters} /></th>{dimension === "game" && <><th scope="col">{target?.team_a || "Team A"}</th><th scope="col">{target?.team_b || "Team B"}</th><th scope="col">Combined rate</th></>}<th scope="col"><SortButton label="Profitable-ledger rate" column="raw_accuracy" filters={filters} setFilters={setFilters} /></th><th scope="col"><SortButton label="Confidence score" column="confidence_score" filters={filters} setFilters={setFilters} /></th><th scope="col"><SortButton label="ROI" column="roi" filters={filters} setFilters={setFilters} /></th><th scope="col">Avg entry price</th>{dimension === "game" && <th scope="col">Game P&amp;L</th>}<th scope="col">Observed position</th><th scope="col">Streak</th></tr></thead><tbody>{result.rows.map((row, index) => <tr key={row.wallet}><td className="rank-cell">{(result.page - 1) * result.page_size + index + 1}</td><td><TraderCell row={row} onOpenTrader={onOpenTrader} onCopy={onCopy} /></td><td><span className="record-cell">{row.record}</span></td><td>{formatNumber(row.picks)}</td>{dimension === "game" && <><td><AccuracyMeter value={row.team_a_accuracy_pct} sample={row.team_a_picks} /></td><td><AccuracyMeter value={row.team_b_accuracy_pct} sample={row.team_b_picks} /></td><td><AccuracyMeter value={row.combined_accuracy_pct} sample={Number(row.team_a_picks || 0) + Number(row.team_b_picks || 0)} /></td></>}<td><AccuracyMeter value={row.raw_accuracy_pct} sample={row.picks} /></td><td><AccuracyMeter value={row.confidence_score_pct} sample={row.picks} /></td><td>{formatPercent(row.roi_pct)}</td><td>{formatPercent(row.avg_entry_price == null ? null : Number(row.avg_entry_price) * 100)}</td>{dimension === "game" && <td>{formatMoney(row.target_pnl)}</td>}<td>{row.current_pick ? <span className="pick-chip">{row.current_pick}</span> : <span className="muted">No current position</span>}</td><td><span className={Number(row.current_streak) < 0 ? "streak-loss" : "streak-win"}>{row.current_streak ? `${Math.abs(row.current_streak)} ${row.current_streak > 0 ? "W" : "L"}` : "—"}</span></td></tr>)}</tbody></table></div>
     <Pagination result={result} filters={filters} setFilters={setFilters} />
   </>;
 }
@@ -422,13 +450,13 @@ function Pagination({ result, filters, setFilters }) {
   return <div className="pagination"><span>Showing {formatNumber((result.page - 1) * result.page_size + 1)}–{formatNumber(Math.min(result.page * result.page_size, result.total))} of {formatNumber(result.total)}</span><div className="pagination-actions"><label>Rows <select value={filters.page_size} onChange={(event) => setFilters((current) => ({ ...current, page_size: event.target.value, page: 1 }))}><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label><Button type="button" variant="secondary" disabled={result.page <= 1} onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, Number(current.page) - 1) }))}>Previous</Button><span>Page {result.page} of {result.pages}</span><Button type="button" variant="secondary" disabled={result.page >= result.pages} onClick={() => setFilters((current) => ({ ...current, page: Number(current.page) + 1 }))}>Next</Button></div></div>;
 }
 
-function AnalyticsView({ dimension, filters, setFilters, catalog, result, loading, error, onRetry, onOpenTrader, onCopy }) {
-  const title = dimension === "team" ? "Best traders by team" : "Best traders by game";
-  const description = dimension === "team" ? "Compare traders who have resolved moneyline ledgers involving a selected team." : "Compare traders around one Polymarket matchup, including team-specific samples and current positions.";
+function AnalyticsView({ dimension, filters, setFilters, snapshot, catalog, result, loading, error, onRetry, onOpenTrader, onCopy }) {
+  const title = dimension === "team" ? "Wallet performance by team" : "Wallet performance by game";
+  const description = dimension === "team" ? "Compare resolved moneyline ledgers involving a selected team." : "Compare resolved ledgers around one Polymarket matchup, including team-specific samples and current positions.";
   function reset() {
     setFilters((current) => ({ ...current, team: catalog?.teams?.[0] || "", condition_id: catalog?.games?.[0]?.condition_id || "", sample: "season", min_picks: 5, include_no_pick: false, search: "", sort: "confidence_score", direction: "desc", page: 1, start_date: "", end_date: "" }));
   }
-  return <><section className="page-heading compact-heading"><div><Kicker>Descriptive analytics</Kicker><h1>{title}</h1><p className="page-lede">{description}</p></div><div className="last-check-card"><span className="last-check-icon"><Database size={20} /></span><span><small>Data snapshot</small><strong>{formatDate(catalog?.generated_at_utc || result?.target_game?.event_date)}</strong></span></div></section><AnalyticsToolbar dimension={dimension} filters={filters} setFilters={setFilters} catalog={catalog} onReset={reset} /><LayerCard className="panel table-panel"><LeaderboardTable result={result} dimension={dimension} filters={filters} setFilters={setFilters} onOpenTrader={onOpenTrader} onCopy={onCopy} loading={loading} error={error} onRetry={onRetry} /></LayerCard></>;
+  return <><section className="page-heading compact-heading"><div><Kicker>Descriptive analytics</Kicker><h1>{title}</h1><p className="page-lede">{description}</p></div><div className="last-check-card"><span className="last-check-icon" aria-hidden="true"><Database size={18} /></span><span><small>Snapshot captured</small><strong>{formatDate(snapshot?.generated_at_utc)}</strong></span></div></section><div className="analytics-note" role="note"><Info size={16} aria-hidden="true" /><span>These rankings describe profitable wallet/game ledgers. They are not a forecast of future winners.</span></div><AnalyticsToolbar dimension={dimension} filters={filters} setFilters={setFilters} catalog={catalog} onReset={reset} /><LayerCard className="panel table-panel"><LeaderboardTable result={result} dimension={dimension} filters={filters} setFilters={setFilters} onOpenTrader={onOpenTrader} onCopy={onCopy} loading={loading} error={error} onRetry={onRetry} /></LayerCard></>;
 }
 
 function TraderTrendsView({ sport, wallet, setWallet, trader, loading, error, onLoad, onCopy }) {
@@ -578,8 +606,14 @@ function RunHistoryView({ data, selectedRunId, setSelectedRunId, runDetail, setR
   const [step, setStep] = useState("");
   const [search, setSearch] = useState("");
   const [actionError, setActionError] = useState("");
+  const [actionPending, setActionPending] = useState("");
   const runs = data?.runtime?.history || [];
   const active = data?.runtime?.running ? data.runtime.last_run : null;
+  function selectRun(id) {
+    setSelectedRunId(id);
+    setRunDetail(null);
+    setActionError("");
+  }
   useEffect(() => {
     if (!selectedRunId) return undefined;
     let cancelled = false;
@@ -588,12 +622,13 @@ function RunHistoryView({ data, selectedRunId, setSelectedRunId, runDetail, setR
   }, [selectedRunId, level, step, search, setRunDetail]);
   async function runAction(path) {
     setActionError("");
-    try { await request(path, { method: "POST", body: "{}" }); await onRefresh(); } catch (cause) { setActionError(cause.message); }
+    setActionPending(path);
+    try { await request(path, { method: "POST", body: "{}" }); await onRefresh(); } catch (cause) { setActionError(cause.message); } finally { setActionPending(""); }
   }
   const steps = runDetail?.steps || [];
   const visibleLogs = runDetail?.logs || [];
   const allLogText = visibleLogs.map((event) => `${event.timestamp_utc || ""} [${event.level || "info"}] ${event.step || ""} ${event.message || ""}`).join("\n");
-  return <><section className="page-heading compact-heading"><div><Kicker>Operations</Kicker><h1>Run history</h1><p className="page-lede">Inspect refresh outcomes, step timing, validation output, and publication details.</p></div><Button type="button" variant="secondary" onClick={onRefresh}><ArrowClockwise size={17} /> Refresh history</Button></section>{active && <div className="active-run-banner"><div className="active-run-icon"><ArrowClockwise className="spin" size={20} /></div><div><strong>{active.sport} refresh is running</strong><span>{active.current_step || data.runtime.current_step || "Starting"} · started {formatDate(active.started_at_utc)}</span></div><Button type="button" variant="secondary" onClick={() => runAction(`/api/runs/${active.id}/cancel`)}><Stop size={16} /> Cancel at safe step</Button></div>}{actionError && <Alert>{actionError}</Alert>}<LayerCard className="panel runs-panel"><div className="table-scroll"><table className="analytics-table runs-table"><thead><tr><th>Run ID</th><th>Dataset</th><th>Status</th><th>Trigger</th><th>Started</th><th>Duration</th><th>Validation</th><th>Publication</th></tr></thead><tbody>{runs.map((run) => <tr key={run.id} className={selectedRunId === run.id ? "selected-row" : ""} onClick={() => setSelectedRunId(run.id)}><td><button type="button" className="run-link">{run.id}</button></td><td>{run.sport}</td><td><StatusBadge status={run.status}>{run.status}</StatusBadge></td><td>{run.trigger || "manual"}</td><td>{formatDate(run.started_at_utc)}</td><td>{formatDuration(run.duration_seconds)}</td><td>{run.metrics?.validation_score || run.validation_score || (run.status === "success" ? "Passed" : "—")}</td><td>{run.push?.pushed ? <span className="published"><Check size={15} /> Pushed</span> : "Not pushed"}</td></tr>)}</tbody></table></div>{!runs.length && <div className="empty-state large-empty"><FileText size={31} /><strong>No completed runs yet.</strong><span>Start a data update to create the first run record.</span></div>}</LayerCard>{runDetail && <LayerCard className="panel run-detail-panel"><div className="detail-heading"><div><Kicker>Run detail</Kicker><h2>{runDetail.id}</h2><p>{runDetail.sport} · {runDetail.status} · {formatDate(runDetail.started_at_utc)}</p></div><div className="detail-heading-actions"><StatusBadge status={runDetail.status}>{runDetail.status}</StatusBadge>{runDetail.status !== "running" && <Button type="button" variant="secondary" onClick={() => runAction(`/api/runs/${runDetail.id}/retry`)}><Play size={16} /> Retry</Button>}</div></div><div className="run-detail-grid"><div><h3>Pipeline steps</h3><div className="run-steps">{steps.map((item) => <div className="run-step" key={item.name}><span className={`step-dot ${item.status}`} /> <span><strong>{item.name}</strong><small>{item.status} · {formatDuration(item.duration_seconds)}</small></span></div>)}</div></div><div><h3>Run metrics</h3><div className="run-metrics"><span><small>Full checks</small><strong>{runDetail.full_validation ? "Yes" : "No"}</strong></span><span><small>Duration</small><strong>{formatDuration(runDetail.duration_seconds)}</strong></span><span><small>Validation</small><strong>{runDetail.metrics?.validation_score || "—"}</strong></span><span><small>Commit</small><strong>{runDetail.push?.commit ? String(runDetail.push.commit).slice(0, 7) : "—"}</strong></span><span><small>Download</small><strong>{runDetail.download_url ? "Available" : "—"}</strong></span></div></div></div><div className="log-toolbar"><div><h3>Structured logs</h3><p>{visibleLogs.length} visible entries</p></div><div className="log-controls"><input className="native-input" placeholder="Search logs" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search logs" /><select className="native-select" value={level} onChange={(event) => setLevel(event.target.value)} aria-label="Filter logs by level"><option value="">All levels</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select><select className="native-select" value={step} onChange={(event) => setStep(event.target.value)} aria-label="Filter logs by pipeline step"><option value="">All steps</option>{steps.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></div></div><div className="log-actions"><button type="button" className="button-link secondary" onClick={() => onCopy(allLogText)}><Copy size={16} /> Copy visible logs</button><a className="button-link secondary" href={apiUrl(buildQuery(`/api/runs/${runDetail.id}/logs`, { ...{ level, step, search }, format: "json" }))}><DownloadSimple size={16} /> Download JSON</a><a className="button-link secondary" href={apiUrl(buildQuery(`/api/runs/${runDetail.id}/logs`, { ...{ level, step, search }, format: "text" }))}><DownloadSimple size={16} /> Download text</a></div><div className="log-viewer">{visibleLogs.map((event, index) => <div className={`log-line log-${event.level || "info"}`} key={`${event.timestamp_utc}-${index}`}><time>{formatDate(event.timestamp_utc)}</time><span className="log-level">{event.level || "info"}</span><span className="log-step">{event.step || "—"}</span><code>{event.message}</code></div>)}</div></LayerCard>}</>;
+  return <><section className="page-heading compact-heading"><div><Kicker>Operations</Kicker><h1>Run history</h1><p className="page-lede">Inspect refresh outcomes, validation results, and publication details.</p></div><Button type="button" variant="secondary" onClick={onRefresh}><ArrowClockwise size={17} /> Refresh history</Button></section>{active && <div className="active-run-banner"><div className="active-run-icon"><ArrowClockwise className="spin" size={20} /></div><div><strong>{active.sport} refresh is running</strong><span>{active.current_step || data.runtime.current_step || "Starting"} · started {formatDate(active.started_at_utc)}</span></div><Button type="button" variant="secondary" onClick={() => runAction(`/api/runs/${active.id}/cancel`)} loading={actionPending.endsWith("/cancel")} disabled={Boolean(actionPending)}><Stop size={16} /> Cancel at safe step</Button></div>}{actionError && <Alert>{actionError}</Alert>}<LayerCard className="panel runs-panel"><div className="table-scroll"><table className="analytics-table runs-table"><caption className="sr-only">Refresh run history</caption><thead><tr><th scope="col">Run ID</th><th scope="col">Dataset</th><th scope="col">Status</th><th scope="col">Trigger</th><th scope="col">Started</th><th scope="col">Duration</th><th scope="col">Validation</th><th scope="col">Publication</th></tr></thead><tbody>{runs.map((run) => <tr key={run.id} className={selectedRunId === run.id ? "selected-row" : ""}><td><button type="button" className="run-link" onClick={() => selectRun(run.id)} aria-label={`Open details for run ${run.id}`}>{run.id}</button></td><td>{run.sport}</td><td><StatusBadge status={run.status}>{run.status}</StatusBadge></td><td>{run.trigger || "manual"}</td><td>{formatDate(run.started_at_utc)}</td><td>{formatDuration(run.duration_seconds)}</td><td>{run.metrics?.validation_score || run.validation_score || (run.status === "success" ? "Passed" : "—")}</td><td>{run.push?.pushed ? <span className="published"><Check size={15} /> Pushed</span> : "Not pushed"}</td></tr>)}</tbody></table></div>{!runs.length && <div className="empty-state large-empty"><FileText size={31} /><strong>No runs recorded yet.</strong><span>Start a data update to create the first run record.</span></div>}</LayerCard>{runDetail && <LayerCard className="panel run-detail-panel"><div className="detail-heading"><div><Kicker>Run detail</Kicker><h2>{runDetail.id}</h2><p>{runDetail.sport} · {runDetail.status} · {formatDate(runDetail.started_at_utc)}</p></div><div className="detail-heading-actions"><StatusBadge status={runDetail.status}>{runDetail.status}</StatusBadge>{runDetail.status !== "running" && <Button type="button" variant="secondary" onClick={() => runAction(`/api/runs/${runDetail.id}/retry`)} loading={actionPending.endsWith("/retry")} disabled={Boolean(actionPending)}><Play size={16} /> Retry</Button>}</div></div><div className="run-detail-grid"><div><h3>Pipeline steps</h3><div className="run-steps">{steps.map((item) => <div className="run-step" key={item.name}><span className={`step-dot ${item.status}`} /> <span><strong>{item.name}</strong><small>{item.status} · {formatDuration(item.duration_seconds)}</small></span></div>)}</div></div><div><h3>Run metrics</h3><div className="run-metrics"><span><small>Full checks</small><strong>{runDetail.full_validation ? "Yes" : "No"}</strong></span><span><small>Duration</small><strong>{formatDuration(runDetail.duration_seconds)}</strong></span><span><small>Validation</small><strong>{runDetail.metrics?.validation_score || "—"}</strong></span><span><small>Commit</small><strong>{runDetail.push?.commit ? String(runDetail.push.commit).slice(0, 7) : "—"}</strong></span><span><small>Download</small><strong>{runDetail.download_url ? "Available" : "—"}</strong></span></div></div></div><div className="log-toolbar"><div><h3>Structured logs</h3><p>{visibleLogs.length} visible entries</p></div><div className="log-controls"><input className="native-input" placeholder="Search logs" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search logs" /><select className="native-select" value={level} onChange={(event) => setLevel(event.target.value)} aria-label="Filter logs by level"><option value="">All levels</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select><select className="native-select" value={step} onChange={(event) => setStep(event.target.value)} aria-label="Filter logs by pipeline step"><option value="">All steps</option>{steps.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select></div></div><div className="log-actions"><button type="button" className="button-link secondary" onClick={() => onCopy(allLogText)}><Copy size={16} /> Copy visible logs</button><a className="button-link secondary" href={apiUrl(buildQuery(`/api/runs/${runDetail.id}/logs`, { ...{ level, step, search }, format: "json" }))}><DownloadSimple size={16} /> Download JSON</a><a className="button-link secondary" href={apiUrl(buildQuery(`/api/runs/${runDetail.id}/logs`, { ...{ level, step, search }, format: "text" }))}><DownloadSimple size={16} /> Download text</a></div><div className="log-viewer">{visibleLogs.map((event, index) => <div className={`log-line log-${event.level || "info"}`} key={`${event.timestamp_utc}-${index}`}><time>{formatDate(event.timestamp_utc)}</time><span className="log-level">{event.level || "info"}</span><span className="log-step">{event.step || "—"}</span><code>{event.message}</code></div>)}</div></LayerCard>}</>;
 }
 
 function App() {
@@ -631,7 +666,6 @@ function App() {
         setError("");
         if (!formDirty && response.config) {
           setForm(response.config);
-          setFilters((current) => ({ ...current, sport: response.config.sport }));
         }
       } catch (cause) {
         if (!cancelled) setError(cause.message || "The local controller is unavailable.");
@@ -653,6 +687,7 @@ function App() {
 
   const sports = data?.sports?.length ? data.sports : FALLBACK_SPORTS;
   const selected = useMemo(() => sports.find((sport) => sport.id === form.sport) || sports[0], [sports, form.sport]);
+  const analyticsSnapshot = useMemo(() => sports.find((sport) => sport.id === filters.sport) || selected, [sports, filters.sport, selected]);
   const runtime = data?.runtime || {};
   const validation = selected?.validation || {};
   const counts = selected?.counts || {};
@@ -711,22 +746,23 @@ function App() {
   async function copyText(value) { try { await navigator.clipboard.writeText(value); setNotice("Copied to clipboard."); } catch { setNotice(value); } }
   function openTrader(wallet) { setTraderWallet(wallet); setView("trader"); setAnalyticsLoading(true); setAnalyticsError(""); request(buildQuery("/api/analytics/trader", { sport: filters.sport, wallet })).then((response) => setTrader(response)).catch((cause) => setAnalyticsError(cause.message)).finally(() => setAnalyticsLoading(false)); }
   function loadTrader() { if (!traderWallet.trim()) return; setTrader(null); setAnalyticsLoading(true); setAnalyticsError(""); request(buildQuery("/api/analytics/trader", { sport: filters.sport, wallet: traderWallet.trim() })).then((response) => setTrader(response)).catch((cause) => setAnalyticsError(cause.message)).finally(() => setAnalyticsLoading(false)); }
+  const controllerStatus = data === null ? "connecting" : error ? "offline" : runtime.running ? "running" : "online";
+  const controllerLabel = controllerStatus === "connecting" ? "Connecting…" : controllerStatus === "offline" ? "Controller offline" : controllerStatus === "running" ? "Refresh running" : "Controller online";
 
   return <div className="app-shell">
-    <header className="topbar"><div className="topbar-inner"><button type="button" className="brand-lockup" onClick={() => openView("updates")}><div className="brand-mark"><span /></div><span><strong>Polymarket Analytics</strong><small>Data updates</small></span></button><div className="topbar-actions">{data?.project?.repository && <a className="repo-link" href={`https://github.com/${data.project.repository}`} target="_blank" rel="noreferrer"><GithubLogo size={16} /><span>{data.project.repository}</span><ArrowUpRight size={14} /></a>}<StatusBadge status={error ? "offline" : runtime.running ? "running" : "online"}>{error ? "Controller offline" : runtime.running ? "Refresh running" : "Controller online"}</StatusBadge></div></div></header>
-    <nav className="tabbar" aria-label="Analytics views"><div className="tabbar-inner">{TABS.map((tab) => <button type="button" key={tab.id} className={`tab-button ${view === tab.id ? "is-active" : ""}`} onClick={() => openView(tab.id)} aria-current={view === tab.id ? "page" : undefined}><tab.icon size={17} />{tab.label}</button>)}</div></nav>
-    <main className="page-wrap">
+    <header className="topbar"><div className="topbar-inner"><button type="button" className="brand-lockup" onClick={() => openView("updates")} aria-label="Open data updates"><span><strong>Polymarket Analytics</strong><small>Sports intelligence</small></span></button><div className="topbar-actions">{data?.project?.repository && <a className="repo-link" href={`https://github.com/${data.project.repository}`} target="_blank" rel="noreferrer"><GithubLogo size={15} aria-hidden="true" /><span>{data.project.repository}</span><ArrowUpRight size={14} aria-hidden="true" /></a>}<StatusBadge status={controllerStatus}>{controllerLabel}</StatusBadge></div></div></header>
+    <nav className="tabbar" aria-label="Analytics views"><div className="tabbar-inner">{TABS.map((tab, index) => <button type="button" key={tab.id} className={`tab-button ${view === tab.id ? "is-active" : ""} ${index > 0 && TABS[index - 1].group !== tab.group ? "tab-group-start" : ""}`} onClick={() => openView(tab.id)} aria-current={view === tab.id ? "page" : undefined}><tab.icon size={16} aria-hidden="true" />{tab.label}</button>)}</div></nav>
+    <a className="skip-link" href="#main-content">Skip to content</a>
+    <main id="main-content" className="page-wrap">
       {error && <Alert onDismiss={() => setError("")}>{error}</Alert>}
       {notice && <Alert type="success" onDismiss={() => setNotice("")}>{notice}</Alert>}
-      {view === "updates" && <DataUpdatesView data={data} selected={selected} sports={sports} form={form} setField={setField} runtime={runtime} validation={validation} counts={counts} runNow={runNow} starting={starting} saveSchedule={saveSchedule} saving={saving} formDirty={formDirty} validationUrl={validationUrl} />}
-      {analyticsView && <AnalyticsView dimension={view} filters={filters} setFilters={setFilters} catalog={catalog} result={result} loading={analyticsLoading} error={analyticsError} onRetry={() => setFilters((current) => ({ ...current }))} onOpenTrader={openTrader} onCopy={copyText} />}
+      {view === "updates" && <DataUpdatesView data={data} dataReady={Boolean(data)} selected={selected} sports={sports} form={form} setField={setField} runtime={runtime} validation={validation} counts={counts} runNow={runNow} starting={starting} saveSchedule={saveSchedule} saving={saving} formDirty={formDirty} validationUrl={validationUrl} />}
+      {analyticsView && <AnalyticsView dimension={view} filters={filters} setFilters={setFilters} snapshot={analyticsSnapshot} catalog={catalog} result={result} loading={analyticsLoading} error={analyticsError} onRetry={() => setFilters((current) => ({ ...current }))} onOpenTrader={openTrader} onCopy={copyText} />}
       {view === "trader" && <TraderTrendsView sport={filters.sport} wallet={traderWallet} setWallet={setTraderWallet} trader={trader} loading={analyticsLoading} error={analyticsError} onLoad={loadTrader} onCopy={copyText} />}
       {view === "game-trends" && <GameTrendsView filters={filters} setFilters={setFilters} catalog={catalog} gameTrend={gameTrend} loading={analyticsLoading} error={analyticsError} onRetry={() => setFilters((current) => ({ ...current }))} />}
       {view === "odds" && <OddsPerformanceView filters={filters} setFilters={setFilters} oddsFilters={oddsFilters} setOddsFilters={setOddsFilters} catalog={catalog} analysis={oddsAnalysis} loading={analyticsLoading} error={analyticsError} onRetry={() => setOddsFilters((current) => ({ ...current }))} />}
       {view === "runs" && <RunHistoryView data={data} selectedRunId={selectedRunId} setSelectedRunId={setSelectedRunId} runDetail={runDetail} setRunDetail={setRunDetail} onRefresh={refreshStatus} onCopy={copyText} />}
-      {view === "updates" && <section className="workflow-strip"><div className="workflow-intro"><span className="workflow-icon"><SlidersHorizontal size={20} /></span><div><Kicker>Refresh workflow</Kicker><h2>Every step leaves a local artifact</h2><p>API data, Parquet, DuckDB, analysis, validation, and the published workbook stay traceable.</p></div></div><div className="workflow-steps"><span><b>01</b>API snapshot</span><span><b>02</b>Parquet trades</span><span><b>03</b>DuckDB ledger</span><span><b>04</b>Excel + GitHub</span></div></section>}
     </main>
-    <footer className="footer"><span>Local-first ETL · Parquet + DuckDB</span><span>Cloudflare Kumo UI · Public HTTPS control panel</span></footer>
   </div>;
 }
 
