@@ -1,0 +1,69 @@
+import {
+  Activity,
+  ChartNoAxesCombined,
+  DatabaseZap,
+  LayoutDashboard,
+  RefreshCw,
+  Trophy,
+} from "lucide-react"
+
+export const FALLBACK_CONFIG = {
+  sport: "wnba_2026",
+  interval_value: 6,
+  interval_unit: "hours",
+  enabled: false,
+  auto_push: true,
+  full_validation: false,
+}
+
+export const FALLBACK_SPORTS = [
+  { id: "wnba_2026", label: "WNBA 2026" },
+  { id: "nfl_2025", label: "NFL 2025" },
+]
+
+export const NAVIGATION = [
+  {
+    label: "Analyze",
+    items: [
+      { id: "overview", label: "Overview", icon: LayoutDashboard },
+      { id: "wallets", label: "Wallets", icon: Trophy },
+      { id: "games", label: "Games", icon: Activity },
+      { id: "odds", label: "Odds & results", icon: ChartNoAxesCombined },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { id: "refresh", label: "Refresh data", icon: RefreshCw },
+      { id: "runs", label: "Run history", icon: DatabaseZap },
+    ],
+  },
+]
+
+export const VALID_VIEWS = new Set(NAVIGATION.flatMap((group) => group.items.map((item) => item.id)))
+
+export const PIPELINE_STEPS = [
+  ["Refresh event metadata", "Market and event metadata"],
+  ["Fetch and persist trades", "Local Parquet trade snapshot"],
+  ["Rebuild local DuckDB", "Analytical database"],
+  ["Recalculate bettor analysis", "Wallet and game ledgers"],
+  ["Export Excel workbook", "Downloadable analysis"],
+  ["Validate the refreshed snapshot", "Integrity and comparison checks"],
+  ["Commit and push updated artifacts", "GitHub publication"],
+]
+
+export function normalizeView(value) {
+  const aliases = {
+    updates: "refresh",
+    team: "wallets",
+    game: "wallets",
+    trader: "wallets",
+    "game-trends": "games",
+  }
+  const normalized = aliases[value] || value
+  return VALID_VIEWS.has(normalized) ? normalized : "overview"
+}
+
+export function viewLabel(view) {
+  return NAVIGATION.flatMap((group) => group.items).find((item) => item.id === view)?.label || "Overview"
+}

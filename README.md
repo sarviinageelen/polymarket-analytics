@@ -41,6 +41,7 @@ polymarket-analytics/
 ├── scripts/                      # Nav ETL adapter, DuckDB build, analysis, export
 ├── src/polymarket_analytics/     # Dependency-light API client and replay logic
 ├── tests/                        # Unit tests
+├── web/                          # Responsive shadcn analytics and operations UI
 ├── reports/                      # Committed Markdown reports and report index
 │   └── generated/                # Local XLSX/CSV outputs; ignored by Git
 ├── data/                         # Local API/Parquet/DuckDB cache; ignored by Git

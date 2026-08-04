@@ -1,32 +1,22 @@
-import { forwardRef, useId } from "react";
-import { cn } from "../../lib/utils";
+import * as React from "react"
 
-export const Input = forwardRef(function Input(
-  { label, className, wrapperClassName, containerClassName, disabled = false, id, ...props },
-  ref,
-) {
-  const generatedId = useId();
-  const inputId = id ?? (label != null ? generatedId : undefined);
+import { cn } from "@/lib/utils"
 
-  const input = (
-    <input
-      {...props}
-      ref={ref}
-      id={inputId}
-      className={cn("native-input", "ui-input", className)}
-      disabled={disabled}
-    />
-  );
-
-  if (label == null) return input;
-
+function Input({
+  className,
+  type,
+  ...props
+}) {
   return (
-    <label
-      className={cn("ui-field", disabled && "ui-field-disabled", wrapperClassName ?? containerClassName)}
-      htmlFor={inputId}
-    >
-      <span className="field-label">{label}</span>
-      {input}
-    </label>
+    <input
+      type={type}
+      data-slot="input"
+      className={cn(
+        "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+        className
+      )}
+      {...props} />
   );
-});
+}
+
+export { Input }

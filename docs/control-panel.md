@@ -1,9 +1,24 @@
 # Control panel
 
-The repository now includes a small local web control panel for the refreshable
-WNBA 2026 and NFL 2025 full-game moneyline datasets. The page uses Cloudflare's
-Kumo component library for its controls and status elements, while the server
-that powers those controls runs next to the local Parquet and DuckDB files.
+The repository includes a responsive web workspace for the refreshable WNBA
+2026 and NFL 2025 full-game moneyline datasets. The frontend uses the shadcn
+design system, Radix primitives, Tailwind CSS, Inter, and Lucide icons. The
+Python controller runs beside the local Parquet and DuckDB files.
+
+The interface is grouped by intent:
+
+- **Overview** summarizes freshness, coverage, recent resolved games, and
+  overall market calibration.
+- **Wallets** compares wallet histories by team or resolved game and opens
+  wallet details in a side panel.
+- **Games** shows team-price movement, hourly volume, and current wallet
+  positioning without joining across missing observations.
+- **Odds & results** compares pre-match market prices with resolved outcomes,
+  including confidence intervals and separate market-role and venue views.
+- **Refresh data** runs or schedules the pipeline and links to its workbook and
+  validation evidence.
+- **Run history** exposes step-level outcomes, publication details, and
+  downloadable structured logs.
 
 ## Start it
 
@@ -22,7 +37,7 @@ Nav-backed ETL.
 
 ## What a refresh does
 
-The **Update now** button runs the same cache-first sequence as the documented
+The **Refresh** button runs the same cache-first sequence as the documented
 runbook:
 
 1. Refresh the Gamma event snapshot for the selected season.
@@ -44,6 +59,11 @@ while `control_panel_server.py` is running. If the process is stopped, no job is
 started; when it is started again, the saved schedule is resumed from the next
 interval. For a server that should run continuously, put the command under your
 normal service manager (systemd, launchd, Docker, or a process supervisor).
+
+The dataset being viewed in the header is intentionally separate from the
+dataset selected under **Automation**. Browsing NFL data cannot silently change
+an existing WNBA schedule; schedule changes take effect only after **Save
+schedule** is pressed.
 
 The panel exposes both manual and scheduled runs through the same API:
 
@@ -95,8 +115,9 @@ allowlist before sharing it broadly. If the server's public IP changes, update
 the hostname in the Caddy configuration and restart Caddy; `sslip.io` derives
 DNS from the IP.
 
-The frontend is kept separate in `web/`, uses Kumo, and can later be moved to
-an authenticated Cloudflare Worker if a shared remote control plane is needed.
+The frontend is kept separate in `web/` and is built into `web/dist`. Its
+shadcn components remain local source files, so visual changes do not depend on
+a hosted component service.
 
 ## Rollback backup
 
