@@ -76,6 +76,20 @@ The current snapshot intentionally excludes six April 30–May 3 Polymarket
 events because the configured scope starts at the official May 8 regular
 season. Change both date arguments if preseason should be analyzed.
 
+WNBA 2025 uses the same series with its own isolated cache and season window:
+
+    .venv-nav/bin/python scripts/fetch_sports_events.py \
+      --series-id 10105 \
+      --output data/raw/wnba_2025_events.json \
+      --season-label 'WNBA 2025' \
+      --start-date 2025-05-16 \
+      --end-date 2025-10-17 \
+      --force
+
+The control panel supplies those arguments automatically when WNBA 2025 is
+selected. Every downstream path uses `nav_wnba_2025_moneyline`, so refreshing
+the historical season cannot overwrite WNBA 2026.
+
 ## Validation commands
 
 ```bash
@@ -86,7 +100,7 @@ unzip -t reports/generated/nfl_2025_moneyline_picks.xlsx
 
 ## Local web control panel
 
-The repository includes a Kumo-based local dashboard for manual refreshes,
+The repository includes a shadcn-based local dashboard for manual refreshes,
 minute/hour scheduling, validation mode, and guarded GitHub publication. See
 the [control-panel guide](control-panel.md) for startup and service-manager
 notes.

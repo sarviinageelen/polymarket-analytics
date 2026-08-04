@@ -10,11 +10,14 @@ outputs belong under `reports/generated/` and are ignored by Git.
 - `generated/nfl_2025_moneyline_picks.xlsx`: locally generated workbook with
   game matrix, candidate ledgers, and summary sheets.
 
-The workbook is reproducible from the cached Parquet and CSV outputs:
+The workbooks are reproducible from the cached Parquet and CSV outputs:
 
-- WNBA analysis: [wnba_2026_moneyline.md](wnba_2026_moneyline.md)
-- WNBA validation evidence: [wnba_2026_validation.json](wnba_2026_validation.json)
-- WNBA workbook: generated/wnba_2026_moneyline_picks.xlsx
+- WNBA 2026 analysis: [wnba_2026_moneyline.md](wnba_2026_moneyline.md)
+- WNBA 2026 validation: [wnba_2026_validation.json](wnba_2026_validation.json)
+- WNBA 2026 workbook: generated/wnba_2026_moneyline_picks.xlsx
+- WNBA 2025 analysis: [wnba_2025_moneyline.md](wnba_2025_moneyline.md)
+- WNBA 2025 validation: [wnba_2025_validation.json](wnba_2025_validation.json)
+- WNBA 2025 workbook: generated/wnba_2025_moneyline_picks.xlsx
 - NFL validation evidence: [nfl_2025_validation.json](nfl_2025_validation.json)
 
 ```bash

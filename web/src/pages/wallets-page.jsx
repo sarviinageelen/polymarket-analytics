@@ -57,7 +57,7 @@ function RateCell({ value, sample, confidence = false }) {
   return (
     <div className="min-w-32">
       <div className="mb-1.5 flex items-baseline justify-between gap-2 text-xs"><span className="font-medium tabular-nums">{formatPercent(number)}</span><span className="text-[11px] text-muted-foreground">n={formatNumber(sample)}</span></div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", confidence ? "bg-blue-600" : "bg-zinc-500")} style={{ width: `${Math.max(0, Math.min(100, number))}%` }} /></div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", confidence ? "bg-blue-600 dark:bg-blue-500" : "bg-zinc-500 dark:bg-zinc-400")} style={{ width: `${Math.max(0, Math.min(100, number))}%` }} /></div>
     </div>
   )
 }
@@ -96,7 +96,7 @@ function WalletMobileList({ result, onSelect }) {
               <span className="w-6 pt-1 text-xs tabular-nums text-muted-foreground">{rank}</span>
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"><UserRound className="size-4" /></span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-blue-700">{row.display_name || row.wallet_short}</span>
+                <span className="block truncate text-sm font-medium text-blue-700 dark:text-blue-400">{row.display_name || row.wallet_short}</span>
                 <span className="block font-mono text-[11px] text-muted-foreground">{row.wallet_short}</span>
               </span>
               <span className="text-sm font-semibold tabular-nums">{row.record}</span>
@@ -104,9 +104,9 @@ function WalletMobileList({ result, onSelect }) {
             <span className="mt-3 grid grid-cols-3 gap-2 pl-12 text-xs">
               <span><span className="block text-muted-foreground">Confidence</span><span className="mt-0.5 block font-medium tabular-nums">{formatPercent(row.confidence_score_pct)}</span></span>
               <span><span className="block text-muted-foreground">Profitable</span><span className="mt-0.5 block font-medium tabular-nums">{formatPercent(row.raw_accuracy_pct)}</span></span>
-              <span><span className="block text-muted-foreground">ROI</span><span className={cn("mt-0.5 block font-medium tabular-nums", Number(row.roi_pct) >= 0 ? "text-emerald-700" : "text-red-700")}>{formatPercent(row.roi_pct)}</span></span>
+              <span><span className="block text-muted-foreground">ROI</span><span className={cn("mt-0.5 block font-medium tabular-nums", Number(row.roi_pct) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>{formatPercent(row.roi_pct)}</span></span>
             </span>
-            {row.current_pick && <span className="mt-3 ml-12 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{row.current_pick}</span>}
+            {row.current_pick && <span className="mt-3 ml-12 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">{row.current_pick}</span>}
           </button>
         )
       })}
@@ -163,7 +163,7 @@ function TraderSheet({ sport, wallet, open, onOpenChange }) {
                   {(trader.recent_picks || []).slice(0, 10).map((row) => (
                     <div key={row.condition_id} className="grid grid-cols-[1fr_auto] gap-3 p-3 text-sm">
                       <div className="min-w-0"><p className="truncate font-medium">{row.title}</p><p className="mt-0.5 text-xs text-muted-foreground">{formatShortDate(row.event_date)} · {row.result || "unresolved"}</p></div>
-                      <span className={cn("font-medium tabular-nums", Number(row.pnl) >= 0 ? "text-emerald-700" : "text-red-700")}>{formatMoney(row.pnl)}</span>
+                      <span className={cn("font-medium tabular-nums", Number(row.pnl) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>{formatMoney(row.pnl)}</span>
                     </div>
                   ))}
                 </div>
@@ -325,15 +325,15 @@ export function WalletsPage({ sport, initialDimension = "team" }) {
                       <TableCell>
                         <button type="button" className="group flex min-w-44 items-center gap-2 text-left" onClick={() => setSelectedWallet(row.full_wallet)}>
                           <span className="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"><UserRound className="size-4" /></span>
-                          <span className="min-w-0"><span className="block max-w-40 truncate text-sm font-medium text-blue-700 group-hover:underline group-hover:underline-offset-4">{row.display_name || row.wallet_short}</span><span className="block font-mono text-[11px] text-muted-foreground">{row.wallet_short}</span></span>
+                          <span className="min-w-0"><span className="block max-w-40 truncate text-sm font-medium text-blue-700 group-hover:underline group-hover:underline-offset-4 dark:text-blue-400">{row.display_name || row.wallet_short}</span><span className="block font-mono text-[11px] text-muted-foreground">{row.wallet_short}</span></span>
                         </button>
                       </TableCell>
                       <TableCell className="font-medium tabular-nums">{row.record}</TableCell>
                       <TableCell className="tabular-nums">{formatNumber(row.picks)}</TableCell>
                       <TableCell><RateCell value={row.confidence_score_pct} sample={row.picks} confidence /></TableCell>
                       <TableCell><RateCell value={row.raw_accuracy_pct} sample={row.picks} /></TableCell>
-                      <TableCell className={cn("font-medium tabular-nums", Number(row.roi_pct) >= 0 ? "text-emerald-700" : "text-red-700")}>{formatPercent(row.roi_pct)}</TableCell>
-                      <TableCell>{row.current_pick ? <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{row.current_pick}</span> : <span className="text-xs text-muted-foreground">No current position</span>}</TableCell>
+                      <TableCell className={cn("font-medium tabular-nums", Number(row.roi_pct) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>{formatPercent(row.roi_pct)}</TableCell>
+                      <TableCell>{row.current_pick ? <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">{row.current_pick}</span> : <span className="text-xs text-muted-foreground">No current position</span>}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

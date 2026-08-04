@@ -81,7 +81,8 @@ exposure, not a claim about intent or future performance.
 
 ## API endpoints
 
-The controller exposes the same source-backed data to the frontend:
+The controller exposes the same source-backed data to the frontend. Replace
+the `sport` value with `wnba_2025`, `wnba_2026`, or `nfl_2025`:
 
 - `GET /api/analytics/catalog?sport=wnba_2026`
 - `GET /api/analytics/leaderboard?dimension=team&sport=wnba_2026&team=...`

@@ -1,8 +1,7 @@
 # Polymarket Analytics
 
 Reproducible research tooling for Polymarket sports data, covering the 2025 NFL
-season and the ongoing 2026 WNBA regular season with full-game moneyline
-analysis.
+season and the 2025 and 2026 WNBA seasons with full-game moneyline analysis.
 
 The project keeps the raw API snapshot, a Parquet bronze layer, a DuckDB silver
 layer, replayed wallet/game ledgers, and human-readable reports separate. Large
@@ -26,6 +25,11 @@ closed, live/open, stale/unresolved, and upcoming markets. See the
 [validation evidence](reports/wnba_2026_validation.json). The NFL and WNBA
 snapshots each currently pass 20/20 local, workbook, external, and on-chain
 validation checks.
+
+The historical [WNBA 2025 analysis](reports/wnba_2025_moneyline.md) contains
+283 full-game moneylines, 122,454 canonical trades, 5,563 wallets, and 27,209
+wallet-game ledgers. Its [validation evidence](reports/wnba_2025_validation.json)
+passes all 20 local, workbook, external, and on-chain checks.
 
 The artifacts reconcile internally across the manifest, Parquet, DuckDB, CSV,
 and Excel layers. One follow-up remains before calling the capture complete

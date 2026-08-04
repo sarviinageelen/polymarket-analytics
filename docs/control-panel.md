@@ -1,7 +1,7 @@
 # Control panel
 
 The repository includes a responsive web workspace for the refreshable WNBA
-2026 and NFL 2025 full-game moneyline datasets. The frontend uses the shadcn
+2025, WNBA 2026, and NFL 2025 full-game moneyline datasets. The frontend uses the shadcn
 design system, Radix primitives, Tailwind CSS, Inter, and Lucide icons. The
 Python controller runs beside the local Parquet and DuckDB files.
 

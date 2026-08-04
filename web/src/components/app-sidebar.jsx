@@ -1,4 +1,5 @@
-import { GitBranch } from "lucide-react"
+import { GitBranch, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { NAVIGATION } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/status-badge"
 import {
@@ -12,12 +13,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
 
 export function AppSidebar({ view, onNavigate, repository, controllerStatus, controllerLabel }) {
-  const { setOpenMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
 
   function navigate(nextView) {
     onNavigate(nextView)
@@ -25,18 +25,25 @@ export function AppSidebar({ view, onNavigate, repository, controllerStatus, con
   }
 
   return (
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar collapsible="icon">
       <SidebarHeader className="p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Polymarket Analytics" onClick={() => navigate("overview")} className="h-auto min-h-12 px-2">
-              <span className="hidden size-8 shrink-0 place-items-center rounded-md border bg-background text-[11px] font-semibold group-data-[collapsible=icon]:grid">PA</span>
-              <span className="min-w-0 text-left group-data-[collapsible=icon]:hidden">
-                <span className="block truncate font-semibold">Polymarket Analytics</span>
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="flex items-center gap-1">
+          <SidebarMenu className="min-w-0 flex-1">
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" tooltip="Polymarket Analytics" onClick={() => navigate("overview")} className="h-auto min-h-11 px-2 hover:bg-transparent focus-visible:bg-transparent active:bg-transparent">
+                <span className="hidden size-8 shrink-0 place-items-center rounded-md border bg-background text-[11px] font-semibold group-data-[collapsible=icon]:grid">PA</span>
+                <span className="min-w-0 text-left group-data-[collapsible=icon]:hidden">
+                  <span className="block truncate font-semibold">Polymarket Analytics</span>
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          {isMobile && (
+            <Button variant="ghost" size="icon-sm" onClick={() => setOpenMobile(false)} aria-label="Close navigation">
+              <X />
+            </Button>
+          )}
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
@@ -83,7 +90,6 @@ export function AppSidebar({ view, onNavigate, repository, controllerStatus, con
           </SidebarMenu>
         )}
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   )
 }

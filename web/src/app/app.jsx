@@ -198,7 +198,7 @@ export function App() {
   }
 
   return (
-    <SidebarProvider style={{ "--sidebar-width": "15rem", "--sidebar-width-icon": "3.25rem" }}>
+    <SidebarProvider style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" }}>
       <a href="#main-content" className="skip-link">Skip to content</a>
       <AppSidebar
         view={view}
@@ -207,7 +207,7 @@ export function App() {
         controllerStatus={controllerReachable === null ? "connecting" : controllerOnline ? "online" : "offline"}
         controllerLabel={controllerReachable === null ? "Connecting" : controllerOnline ? "Controller online" : "Controller offline"}
       />
-      <SidebarInset className="min-w-0 overflow-hidden ring-1 ring-border/70">
+      <SidebarInset className="min-w-0 overflow-hidden">
         <AppHeader
           view={view}
           sport={sport}
@@ -228,7 +228,7 @@ export function App() {
               </Alert>
             )}
             {notice && (
-              <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
+              <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
                 <CheckCircle2 />
                 <AlertTitle>Done</AlertTitle>
                 <AlertDescription>{notice}</AlertDescription>

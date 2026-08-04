@@ -96,9 +96,9 @@ function PipelineProgress({ runtime, run }) {
               <div key={name} className="flex items-start gap-2 rounded-lg px-2 py-2">
                 <span className={cn(
                   "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-muted-foreground",
-                  status === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                  status === "failed" && "border-red-200 bg-red-50 text-red-700",
-                  status === "running" && "border-blue-200 bg-blue-50 text-blue-700",
+                  status === "success" && "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300",
+                  status === "failed" && "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/60 dark:text-red-300",
+                  status === "running" && "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/60 dark:text-blue-300",
                 )}>
                   {status === "success" ? <Check className="size-3" /> : status === "failed" ? <CircleAlert className="size-3" /> : status === "running" ? <LoaderCircle className="size-3 animate-spin" /> : <span className="size-1 rounded-full bg-current" />}
                 </span>
@@ -117,7 +117,7 @@ function WorkbookCard({ selected, validation, repository, branch }) {
   return (
     <Card size="sm">
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700"><FileSpreadsheet className="size-5" /></div>
+        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"><FileSpreadsheet className="size-5" /></div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{selected?.workbook?.name || "Workbook not generated"}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">Generated {formatDate(selected?.generated_at_utc)} · {validation.pass || 0} checks passed</p>
@@ -162,7 +162,7 @@ export function RefreshPage({
       />
 
       {runtime.running && (
-        <Alert className="border-blue-200 bg-blue-50 text-blue-900">
+        <Alert className="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
           <LoaderCircle className="animate-spin" />
           <AlertTitle>{activeLabel} refresh in progress</AlertTitle>
           <AlertDescription>{runtime.current_step || "Starting the pipeline…"}{!activeMatchesSelection ? ` You are currently viewing ${selected?.label}.` : ""}</AlertDescription>

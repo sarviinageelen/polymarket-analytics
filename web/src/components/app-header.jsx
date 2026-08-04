@@ -1,8 +1,8 @@
-import { Database, RefreshCw } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { SelectField } from "@/components/shared/fields"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { formatDate } from "@/lib/api"
 import { viewLabel } from "@/lib/constants"
 
@@ -10,7 +10,6 @@ export function AppHeader({ view, sport, sports, onSportChange, snapshot, onRefr
   return (
     <header className="sticky top-0 z-20 flex min-h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
       <SidebarTrigger className="-ml-1 size-9" />
-      <Separator orientation="vertical" className="h-4" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium sm:text-sm">{viewLabel(view)}</p>
         <p className="hidden truncate text-xs text-muted-foreground sm:block">
@@ -38,10 +37,7 @@ export function AppHeader({ view, sport, sports, onSportChange, snapshot, onRefr
         >
           <RefreshCw className={statusRefreshing ? "animate-spin" : ""} />
         </Button>
-        <div className="hidden items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground xl:flex">
-          <Database className="size-3.5" />
-          <span>{snapshot?.label || "Dataset"}</span>
-        </div>
+        <ThemeToggle />
       </div>
     </header>
   )

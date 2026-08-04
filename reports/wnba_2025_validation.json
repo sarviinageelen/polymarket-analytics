@@ -1,0 +1,333 @@
+{
+  "generated_at_utc": "2026-08-04T05:19:00.434358+00:00",
+  "local": {
+    "manifest": {
+      "series_id": "10105",
+      "season": "WNBA 2025",
+      "start_date": "2025-05-16",
+      "end_date": "2025-10-17",
+      "generated_at_utc": "2026-08-04T05:17:10.025563+00:00",
+      "market_count": 283,
+      "trade_count": 122454,
+      "ledger_count": 27209
+    },
+    "market_status_resolution_counts": {
+      "closed:resolved": 278,
+      "closed:tie": 5
+    },
+    "ledger_result_counts": {
+      "flat": 116,
+      "loss": 13318,
+      "win": 13775
+    },
+    "event_cache_events": 316,
+    "event_cache_moneyline_markets": 283
+  },
+  "external": {
+    "gamma_scope": {
+      "remote_events": 316,
+      "local_events": 316,
+      "remote_moneyline_markets": 283,
+      "local_moneyline_markets": 283,
+      "missing_local_conditions": 0,
+      "extra_local_conditions": 0
+    }
+  },
+  "onchain": {
+    "samples": [
+      {
+        "transaction_hash": "0x09bc8301df4995fd60f8d4baf7ed41f3e53e9d961941fa64a33f54adc85de692",
+        "endpoint": "https://polygon.drpc.org",
+        "receipt_found": true,
+        "status": "0x1"
+      },
+      {
+        "transaction_hash": "0x5f6ca80f66f8bdacf85c9b518a51455c6eb12c2bb44f585cc40203082b2d58d1",
+        "endpoint": "https://polygon.drpc.org",
+        "receipt_found": true,
+        "status": "0x1"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "event cache scope and moneyline filter",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "events": 316,
+        "moneyline_markets": 283,
+        "db_markets": 283,
+        "duplicate_event_ids": 0,
+        "duplicate_condition_ids": 0
+      }
+    },
+    {
+      "name": "manifest versus DuckDB market census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_market_count": 283,
+        "db_market_count": 283,
+        "manifest_failures": 0,
+        "manifest_condition_ids": 283,
+        "db_condition_ids": 283
+      }
+    },
+    {
+      "name": "Parquet versus DuckDB unique trade census",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "manifest_unique_trades": 122454,
+        "parquet_raw_trades": 122454,
+        "parquet_unique_trades": 122454,
+        "duckdb_trades": 122454,
+        "refresh_duplicate_rows": 0
+      }
+    },
+    {
+      "name": "DuckDB canonical trade identity is unique",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "duplicate_trade_rows": 0
+      }
+    },
+    {
+      "name": "Trade counts reconcile by market",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets_with_count_mismatch": 0,
+        "absolute_trade_row_difference": 0
+      }
+    },
+    {
+      "name": "Trade identity has no conflicting outcome facts",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "conflicting_identity_keys": 0,
+        "conflicting_duplicate_rows": 0
+      }
+    },
+    {
+      "name": "trade-to-market referential integrity",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "orphan_trade_rows": 0,
+        "ledger_rows": 27209
+      }
+    },
+    {
+      "name": "market shape and price domains",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "duplicate_market_keys": 0,
+        "bad_market_rows": 0
+      }
+    },
+    {
+      "name": "trade domains and required fields",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "invalid_trade_rows": 0,
+        "null_wallet": 0,
+        "null_condition_id": 0,
+        "null_event_id": 0,
+        "null_trade_timestamp": 0
+      }
+    },
+    {
+      "name": "trade timestamps are plausible",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "future_trade_rows": 0,
+        "out_of_window_rows": 0,
+        "capture_time_utc": "2026-08-04T05:18:56.895210+00:00"
+      }
+    },
+    {
+      "name": "replay accounting identities",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 1.0999201549566351e-11,
+        "max_realized_pnl_residual": 0.0,
+        "unresolved_with_settlement_or_realized_pnl": 0,
+        "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "candidate filters match saved CSVs",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "5_game_csv": 83,
+        "5_game_query": 83,
+        "10_game_csv": 54,
+        "10_game_query": 54
+      }
+    },
+    {
+      "name": "manifest market results cover DuckDB",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_results": 283,
+        "db_markets": 283,
+        "missing_in_db": 0
+      }
+    },
+    {
+      "name": "workbook reload and profile hyperlinks",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "sheets": [
+          "Read Me",
+          "Odds vs Results",
+          "Games",
+          "Picks Matrix (10+)",
+          "Picks Matrix (5+)",
+          "Picks Ledger (10+)",
+          "Picks Ledger (5+)",
+          "Open Exposure",
+          "Bettor Summary (10+)",
+          "Bettor Summary (5+)"
+        ],
+        "hyperlinks_to_profiles": 6803,
+        "sample_profile_url": "https://polymarket.com/profile/0x37bb2ba956e76f817c4faf7ab022a7fdfe5306e8",
+        "table_counts": {
+          "Read Me": 0,
+          "Odds vs Results": 2,
+          "Games": 1,
+          "Picks Matrix (10+)": 0,
+          "Picks Matrix (5+)": 0,
+          "Picks Ledger (10+)": 1,
+          "Picks Ledger (5+)": 1,
+          "Open Exposure": 0,
+          "Bettor Summary (10+)": 1,
+          "Bettor Summary (5+)": 1
+        },
+        "worksheet_filter_refs": {
+          "Picks Matrix (10+)": "A7:KC61",
+          "Picks Matrix (5+)": "A7:KC90"
+        }
+      }
+    },
+    {
+      "name": "workbook table/filter XML compatibility",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "table_parts": 7,
+        "table_auto_filters": 7,
+        "worksheet_filter_counts": {
+          "xl/worksheets/sheet1.xml": 0,
+          "xl/worksheets/sheet10.xml": 0,
+          "xl/worksheets/sheet2.xml": 0,
+          "xl/worksheets/sheet3.xml": 0,
+          "xl/worksheets/sheet4.xml": 1,
+          "xl/worksheets/sheet5.xml": 1,
+          "xl/worksheets/sheet6.xml": 0,
+          "xl/worksheets/sheet7.xml": 0,
+          "xl/worksheets/sheet8.xml": 0,
+          "xl/worksheets/sheet9.xml": 0
+        }
+      }
+    },
+    {
+      "name": "Gamma event and moneyline census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "remote_events": 316,
+        "local_events": 316,
+        "remote_moneyline_markets": 283,
+        "local_moneyline_markets": 283,
+        "missing_local_conditions": 0,
+        "extra_local_conditions": 0
+      }
+    },
+    {
+      "name": "Gamma market metadata spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "event_id": "60379",
+        "condition_id": "0x84ad752bb09e23cc2b8fe8e421dc28a2e4b25113cbb4210f97864956a7e494b6",
+        "local_market_closed": true,
+        "remote_market_closed": true,
+        "outcomes_match": true
+      }
+    },
+    {
+      "name": "CLOB status spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "condition_id": "0x84ad752bb09e23cc2b8fe8e421dc28a2e4b25113cbb4210f97864956a7e494b6",
+        "closed": true,
+        "accepting_orders": false,
+        "local_market_closed": true
+      }
+    },
+    {
+      "name": "ESPN schedule spot check",
+      "status": "pass",
+      "severity": "medium",
+      "evidence": {
+        "event_id": "56869",
+        "condition_id": "0xc4e6e38774fd8f5ebeaaf3c2a53c715d7b0e7603e5edc3a57408a132f89eeb28",
+        "local_title": "Aces vs. Mercury",
+        "local_teams": [
+          "aces",
+          "mercury"
+        ],
+        "espn_teams": [
+          [
+            "phoenixmercury",
+            "lasvegasaces"
+          ]
+        ],
+        "espn_sport": "basketball/wnba",
+        "scoreboard_date": "20251010",
+        "sample_rule": "latest decisive 1-0 moneyline resolution"
+      }
+    },
+    {
+      "name": "Polygon transaction receipt spot check",
+      "status": "pass",
+      "severity": "medium",
+      "evidence": {
+        "samples": [
+          {
+            "transaction_hash": "0x09bc8301df4995fd60f8d4baf7ed41f3e53e9d961941fa64a33f54adc85de692",
+            "endpoint": "https://polygon.drpc.org",
+            "receipt_found": true,
+            "status": "0x1"
+          },
+          {
+            "transaction_hash": "0x5f6ca80f66f8bdacf85c9b518a51455c6eb12c2bb44f585cc40203082b2d58d1",
+            "endpoint": "https://polygon.drpc.org",
+            "receipt_found": true,
+            "status": "0x1"
+          }
+        ],
+        "usable_samples": 2
+      }
+    }
+  ],
+  "counts": {
+    "pass": 20,
+    "warning": 0,
+    "fail": 0,
+    "not_run": 0
+  }
+}

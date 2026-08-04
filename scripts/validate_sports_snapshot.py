@@ -114,6 +114,24 @@ def teams_match(local_pair: list[str], remote_pair: list[str]) -> bool:
     )
 
 
+def has_decisive_binary_resolution(market: dict) -> bool:
+    """Return true for a played two-outcome market resolved 1–0, not a 0.5–0.5 void."""
+
+    prices = market.get("outcomePrices") or []
+    if isinstance(prices, str):
+        try:
+            prices = json.loads(prices)
+        except json.JSONDecodeError:
+            return False
+    if not isinstance(prices, list) or len(prices) != 2:
+        return False
+    try:
+        low, high = sorted(float(value) for value in prices)
+    except (TypeError, ValueError):
+        return False
+    return low <= 0.001 and high >= 0.999
+
+
 def check(checks: list[dict], name: str, passed: bool, evidence: dict, *, severity: str = "high") -> None:
     checks.append({
         "name": name,
@@ -562,13 +580,25 @@ def external_checks(
         except Exception as exc:
             not_run(checks, "CLOB status spot check", {"error": repr(exc)})
         try:
-            event_date = str(local_event.get("eventDate"))[:10].replace("-", "")
+            # Historical schedules can contain contingent playoff games that
+            # were listed by Polymarket but never played. Those resolve 0.5–0.5
+            # and correctly have no ESPN fixture, so compare the latest
+            # decisive game instead of blindly selecting the final listing.
+            espn_market = next(
+                (market for market in reversed(local_markets) if has_decisive_binary_resolution(market)),
+                sample_open,
+            )
+            espn_event = next(
+                event for event in events
+                if str(event.get("id")) == str(espn_market.get("event_id"))
+            )
+            event_date = str(espn_event.get("eventDate"))[:10].replace("-", "")
             season = str(manifest_summary.get("season") or "").upper()
             espn_sport = "football/nfl" if season.startswith("NFL") else "basketball/wnba"
             scoreboard = request_json(
                 f"https://site.api.espn.com/apis/site/v2/sports/{espn_sport}/scoreboard?dates={event_date}"
             )
-            title = str(local_event.get("title") or "")
+            title = str(espn_event.get("title") or "")
             local_pair = matchup_teams(title)
             remote_pairs = []
             for item in scoreboard.get("events", []) if isinstance(scoreboard, dict) else []:
@@ -581,12 +611,14 @@ def external_checks(
                         remote_pairs.append(remote_pair)
             schedule_match = any(teams_match(local_pair, remote_pair) for remote_pair in remote_pairs)
             check(checks, "ESPN schedule spot check", schedule_match, {
-                "event_id": str(local_event.get("id")),
+                "event_id": str(espn_event.get("id")),
+                "condition_id": str(espn_market.get("conditionId")),
                 "local_title": title,
                 "local_teams": local_pair,
                 "espn_teams": remote_pairs[:5],
                 "espn_sport": espn_sport,
                 "scoreboard_date": event_date,
+                "sample_rule": "latest decisive 1-0 moneyline resolution",
             }, severity="medium")
         except Exception as exc:
             not_run(checks, "ESPN schedule spot check", {"error": repr(exc)})

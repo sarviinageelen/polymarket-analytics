@@ -18,10 +18,18 @@ export const FALLBACK_CONFIG = {
 
 export const FALLBACK_SPORTS = [
   { id: "wnba_2026", label: "WNBA 2026" },
+  { id: "wnba_2025", label: "WNBA 2025" },
   { id: "nfl_2025", label: "NFL 2025" },
 ]
 
 export const NAVIGATION = [
+  {
+    label: "Operations",
+    items: [
+      { id: "refresh", label: "Refresh data", icon: RefreshCw },
+      { id: "runs", label: "Run history", icon: DatabaseZap },
+    ],
+  },
   {
     label: "Analyze",
     items: [
@@ -29,13 +37,6 @@ export const NAVIGATION = [
       { id: "wallets", label: "Wallets", icon: Trophy },
       { id: "games", label: "Games", icon: Activity },
       { id: "odds", label: "Odds & results", icon: ChartNoAxesCombined },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { id: "refresh", label: "Refresh data", icon: RefreshCw },
-      { id: "runs", label: "Run history", icon: DatabaseZap },
     ],
   },
 ]

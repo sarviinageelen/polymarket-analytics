@@ -49,13 +49,13 @@ function CalibrationSummary({ summary }) {
             <div className="mb-2 flex items-center justify-between text-xs">
               <span className="font-medium">Observed wins</span><span className="tabular-nums">{formatPercent(actual)}</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.max(0, Math.min(100, actual))}%` }} /></div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-blue-600 dark:bg-blue-500" style={{ width: `${Math.max(0, Math.min(100, actual))}%` }} /></div>
           </div>
           <div>
             <div className="mb-2 flex items-center justify-between text-xs">
               <span className="font-medium">Average market price</span><span className="tabular-nums">{formatPercent(price)}</span>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-zinc-500" style={{ width: `${Math.max(0, Math.min(100, price))}%` }} /></div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-zinc-500 dark:bg-zinc-400" style={{ width: `${Math.max(0, Math.min(100, price))}%` }} /></div>
           </div>
         </div>
         <div className="rounded-lg bg-muted/50 p-3 text-sm">

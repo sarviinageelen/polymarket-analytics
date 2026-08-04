@@ -24,7 +24,7 @@ export function EmptyState({ title, description, action, compact = false }) {
 export function ErrorState({ title = "Could not load this view", description, onRetry, compact = false }) {
   return (
     <div className={`flex flex-col items-center justify-center text-center ${compact ? "min-h-32" : "min-h-56"}`} role="alert">
-      <div className="grid size-10 place-items-center rounded-full bg-red-50 text-red-700"><AlertCircle className="size-5" /></div>
+      <div className="grid size-10 place-items-center rounded-full bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300"><AlertCircle className="size-5" /></div>
       <h3 className="mt-3 text-sm font-medium">{title}</h3>
       {description && <p className="mt-1 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>}
       {onRetry && <Button variant="outline" className="mt-4 h-9" onClick={onRetry}>Try again</Button>}

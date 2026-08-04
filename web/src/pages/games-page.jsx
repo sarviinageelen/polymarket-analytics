@@ -45,8 +45,8 @@ function GameActivityChart({ timeline, teamA, teamB }) {
     <figure aria-label={`Price and trading activity over time for ${teamA} versus ${teamB}`}>
       <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-2"><i className="size-2 rounded-full bg-blue-600" />{teamA}</span>
-        <span className="inline-flex items-center gap-2"><i className="size-2 rounded-full bg-zinc-700" />{teamB}</span>
-        <span className="inline-flex items-center gap-2"><i className="h-2 w-3 rounded-sm bg-zinc-200" />Trading volume</span>
+        <span className="inline-flex items-center gap-2"><i className="size-2 rounded-full bg-zinc-700 dark:bg-zinc-300" />{teamB}</span>
+        <span className="inline-flex items-center gap-2"><i className="h-2 w-3 rounded-sm bg-zinc-200 dark:bg-zinc-700" />Trading volume</span>
       </div>
       <div className="overflow-x-auto" role="region" aria-label="Game activity chart; scroll horizontally to see the full chart" tabIndex="0">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[720px]" role="img">
@@ -61,11 +61,11 @@ function GameActivityChart({ timeline, teamA, teamB }) {
             const barWidth = Math.max(3, plotWidth / Math.max(1, timeline.length) - 3)
             return <rect key={row.hour} x={x(index) - barWidth / 2} y={yVolume(row.volume)} width={barWidth} height={volumeBottom - yVolume(row.volume)} rx="2" fill="var(--border)" />
           })}
-          {lineSegments("average_price_a").map((points, index) => <polyline key={`team-a-${index}`} points={points.join(" ")} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />)}
-          {lineSegments("average_price_b").map((points, index) => <polyline key={`team-b-${index}`} points={points.join(" ")} fill="none" stroke="#27272a" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />)}
+          {lineSegments("average_price_a").map((points, index) => <polyline key={`team-a-${index}`} points={points.join(" ")} fill="none" stroke="var(--chart-1)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />)}
+          {lineSegments("average_price_b").map((points, index) => <polyline key={`team-b-${index}`} points={points.join(" ")} fill="none" stroke="var(--chart-2)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />)}
           {timeline.map((row, index) => <g key={`${row.hour}-points`}>
-            {row.average_price_a != null && <circle cx={x(index)} cy={yPrice(row.average_price_a)} r="3" fill="#2563eb"><title>{`${row.hour}: ${teamA} ${formatPercent(Number(row.average_price_a) * 100)} · volume ${formatMoney(row.volume)}`}</title></circle>}
-            {row.average_price_b != null && <circle cx={x(index)} cy={yPrice(row.average_price_b)} r="3" fill="#27272a"><title>{`${row.hour}: ${teamB} ${formatPercent(Number(row.average_price_b) * 100)} · volume ${formatMoney(row.volume)}`}</title></circle>}
+            {row.average_price_a != null && <circle cx={x(index)} cy={yPrice(row.average_price_a)} r="3" fill="var(--chart-1)"><title>{`${row.hour}: ${teamA} ${formatPercent(Number(row.average_price_a) * 100)} · volume ${formatMoney(row.volume)}`}</title></circle>}
+            {row.average_price_b != null && <circle cx={x(index)} cy={yPrice(row.average_price_b)} r="3" fill="var(--chart-2)"><title>{`${row.hour}: ${teamB} ${formatPercent(Number(row.average_price_b) * 100)} · volume ${formatMoney(row.volume)}`}</title></circle>}
           </g>)}
           {labelIndexes.map((index) => <text key={index} x={x(index)} y={height - 16} textAnchor={index === 0 ? "start" : index === timeline.length - 1 ? "end" : "middle"} fontSize="11" fill="var(--muted-foreground)">{new Date(timeline[index]?.hour).toLocaleDateString([], { month: "short", day: "numeric" })}</text>)}
           <text x={margin.left} y={volumeTop - 8} fontSize="11" fontWeight="600" fill="var(--muted-foreground)">Hourly volume</text>
@@ -79,9 +79,9 @@ function GameActivityChart({ timeline, teamA, teamB }) {
 function PositionDistribution({ counts, teamA, teamB }) {
   const entries = [
     ["Team A", teamA, "bg-blue-600"],
-    ["Team B", teamB, "bg-zinc-700"],
+    ["Team B", teamB, "bg-zinc-700 dark:bg-zinc-300"],
     ["Hedged", "Hedged", "bg-amber-500"],
-    ["Flat", "Flat", "bg-zinc-300"],
+    ["Flat", "Flat", "bg-zinc-300 dark:bg-zinc-600"],
   ]
   const total = entries.reduce((sum, [key]) => sum + Number(counts?.[key] || 0), 0)
   return (
@@ -124,8 +124,9 @@ export function GamesPage({ sport, initialConditionId = "" }) {
         return
       }
       const today = new Date().toISOString().slice(0, 10)
-      const candidates = response.games.filter((game) => game.event_date <= today).slice(0, 8)
-      let selectedId = candidates[0]?.condition_id || response.games[0]?.condition_id || ""
+      const pastGames = response.games.filter((game) => game.event_date <= today)
+      const candidates = pastGames.filter((game) => game.resolution_type === "resolved").slice(0, 8)
+      let selectedId = candidates[0]?.condition_id || pastGames[0]?.condition_id || response.games[0]?.condition_id || ""
       for (const game of candidates) {
         try {
           const detail = await request(buildQuery("/api/analytics/game-trends", { sport, condition_id: game.condition_id }))
