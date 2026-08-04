@@ -1,76 +1,30 @@
 # WNBA 2026 Full-Game Moneyline Analysis
 
-## Executive Summary
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-04T20:32:15.987209+00:00`.
+The snapshot uses series `10105`, an inclusive event window of `2026-05-08` through `2026-09-24`, and the market filter `sportsMarketType == moneyline`.
 
-- **The WNBA pipeline is running locally and is refreshable.** The snapshot contains 265 full-game moneyline markets in the regular-season window from May 8 through September 24, 2026. At capture time, 224 markets were resolved and 41 remained unresolved.
-- **The data layers reconcile.** The refreshed cache contains 829,808 unique trades, 18,268 wallets, and 102,394 wallet-game ledgers. Manifest, Parquet, DuckDB, CSV filters, and the Excel workbook agree on the key counts.
-- **The bettor filters are intentionally conservative.** The 5+ view contains 349 public wallet identifiers and the 10+ view contains 214, each requiring at least 70% settled non-flat win rate and at least $1,000 of settled BUY cost.
-- **Live and upcoming games are visible but not scored as wins or losses.** Their current positions are shown as mark-to-market exposure only. This prevents an in-progress price from being mistaken for a final result.
+## Snapshot
 
-## Scope and snapshot
+| Metric | Value |
+| --- | ---: |
+| Moneyline markets | 266 |
+| Resolved markets | 227 |
+| Unresolved markets | 39 |
+| Unique trades | 840,478 |
+| Wallets with trades | 18,401 |
+| Wallet × game ledgers | 103,801 |
 
-This report covers Polymarket series 10105 (wnba) and keeps only nested markets where sportsMarketType == moneyline. The configured event-date window is inclusive: 2026-05-08 through 2026-09-24. May 8 is the official WNBA 2026 regular-season start; six earlier Polymarket 2026 events dated April 30–May 3 are therefore treated as preseason/out-of-scope.
+## Candidate views
 
-The API currently lists the captured games only through August 16. That is expected for an ongoing season: rerunning the metadata refresh will add later games as Polymarket publishes them.
+The candidate files require at least five or ten settled games, at least a 70% non-flat profitable-ledger rate, and at least 1,000 units of settled buy cost. They are descriptive filters, not a guarantee of future performance.
 
-| Layer | Count |
-|---|---:|
-| Moneyline markets | 265 |
-| Resolved markets | 224 |
-| Live markets | 0 |
-| Open markets | 3 |
-| Stale/unresolved markets | 1 |
-| Upcoming markets | 37 |
-| Unique trades | 829,808 |
-| Wallets with trades | 18,268 |
-| Wallet-game ledgers | 102,394 |
-| Unsettled wallet-game ledgers | 328 |
+- 5+ game candidates: `353` saved in `results/bettor_candidates_5games_70pct.csv`.
+- 10+ game candidates: `216` saved in `results/bettor_candidates_10games_70pct.csv`.
 
-## What the bettor filters mean
+## Reproducibility
 
-The database replays each wallet’s BUY and SELL activity at the (wallet, condition_id) grain. A settled ledger is a win when realized replayed P&L is positive and a loss when it is negative. Flat ledgers are excluded from the win-rate denominator.
-
-The workbook’s “Primary Pick” is the outcome with the largest cumulative BUY notional for that wallet/game. Buying both outcomes is labeled Both / hedged; a ledger with no BUY rows is Sell-only. This is an inferred trading-direction label, not proof of intent or a pure prediction.
-
-The current top 10+ candidate by realized P&L is DLEK (0x6e82…a752c): 10 wins and 3 losses across 13 settled games, a 76.92% settled non-flat win rate, and approximately $132.3k gross realized P&L on approximately $317.4k settled BUY cost. Fees, funding, and identity attribution are not modeled.
-
-## Ongoing, upcoming, and exceptional markets
-
-The 41 unresolved markets stay in the data model but never populate realized_pnl, settlement_value, or a settled win/loss result. Open positions use the latest cached Gamma outcome prices for mark-to-market values.
-
-One important exception is Atlanta Dream vs. Minnesota Lynx, event 436142. Gamma reports the event closed, while its moneyline remains inactive/archived and unresolved. It is labeled stale_unresolved, not a normal open market. The external schedule shows the game was played, but Polymarket’s market state has not produced a final binary settlement in this snapshot. It should be monitored and excluded from settled ranking until resolution is confirmed.
-
-The workbook’s Games, Open Exposure, and Picks Ledger sheets preserve this distinction. Profile and wallet cells are clickable links to https://polymarket.com/profile/{wallet}.
-
-## Validation and reconciliation
-
-The reproducible validator ran 20 checks and all 20 passed across cache scope,
-market filtering, manifest/Parquet/DuckDB counts, referential integrity,
-domains, timestamps, replay accounting, candidate filters, workbook reload,
-Excel table XML, Gamma, CLOB, ESPN, and Polygon receipt spot checks.
-
-Raw Parquet contains 835,971 rows versus 829,808 exact-key-deduplicated rows
-because refreshing unresolved markets appends repeated history. DuckDB
-deduplicates those exact source rows before replay; the mismatch is recorded
-rather than hidden.
-
-See the saved [validation evidence](wnba_2026_validation.json) and rerun it with:
-
-    .venv-nav/bin/python scripts/validate_sports_snapshot.py \
-      --experiment-dir data/experiments/nav_wnba_2026_moneyline \
-      --events data/raw/wnba_2026_events.json \
-      --workbook reports/generated/wnba_2026_moneyline_picks.xlsx \
-      --output reports/wnba_2026_validation.json
-
-## Recommended next step
-
-Refresh the WNBA event metadata and unresolved-market trades on a schedule, rebuild DuckDB, rerun the validator, and republish the workbook. Keep the May 8 regular-season boundary unless preseason markets are explicitly wanted. Add a separate settlement-monitoring queue for stale/unresolved markets before using their prices in any final ranking.
-
-## Caveats and assumptions
-
-- This is a point-in-time snapshot, not a live workbook.
-- Polymarket’s public APIs can revise market status, prices, names, and resolution metadata.
-- “Win rate” means profitable settled wallet-game ledgers divided by settled non-flat ledgers; it is not directional pick accuracy.
-- P&L is a gross replay model. Explicit trading fees, gas, transfers, and external wallet activity are not included.
-- Wallet addresses are public analytical identifiers; no real-world identity should be inferred from display names or pseudonyms.
-- The Excel workbook is generated locally from DuckDB. Large raw/API/Parquet/DuckDB files remain ignored by Git; the published repository contains the code, documentation, validation evidence, and reviewed workbook.
+- Source repository: https://github.com/Nav1212/PolyMarketAnalytics
+- Source revision: `75d70d8f1659380591c63cc28330fc3c87efde17`
+- Raw event cache: `/root/polymarket-analytics/data/raw/wnba_2026_events.json`
+- Experiment directory: `data/experiments/nav_wnba_2026_moneyline`
+- DuckDB, Parquet, CSV analysis, validation JSON, and Excel are produced as separate local artifacts.
