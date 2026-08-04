@@ -27,6 +27,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Field, SelectField } from "@/components/shared/fields"
 import { PageHeader } from "@/components/shared/page-header"
+import { BalancedCardGrid } from "@/components/shared/balanced-card-grid"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { buildRawUrl, formatDate, formatDuration } from "@/lib/api"
 import { FALLBACK_SCHEDULE, PIPELINE_STEPS } from "@/lib/constants"
@@ -197,8 +198,8 @@ function ScheduleOverview({ data, selectedSport, runtime, onSelectSport, onViewL
                   <div><dt className="text-muted-foreground">Data health</dt><dd className="mt-0.5 font-medium tabular-nums">{health.total ? `${health.pass}/${health.total} passed` : "Not available"}</dd></div>
                 </dl>
                 <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant={selected ? "secondary" : "outline"} onClick={() => onSelectSport(item.id)}>Configure</Button>
-                  <Button size="sm" variant="ghost" onClick={() => onViewLogs(item.id)}><History />Logs</Button>
+                  <Button size="sm" variant={selected ? "secondary" : "outline"} onClick={() => onSelectSport(item.id)} aria-label={`Configure ${item.label}`}>Configure</Button>
+                  <Button size="sm" variant="ghost" onClick={() => onViewLogs(item.id)} aria-label={`View ${item.label} logs`}><History />Logs</Button>
                 </div>
               </div>
             )
@@ -231,7 +232,7 @@ function ScheduleOverview({ data, selectedSport, runtime, onSelectSport, onViewL
                     <TableCell>{latestRun ? <><StatusBadge status={runStatus(latestRun.status)}>{runLabel(latestRun.status)}</StatusBadge><span className="mt-1 block text-xs text-muted-foreground">{formatDate(latestRun.finished_at_utc || latestRun.started_at_utc, { year: undefined, timeZoneName: undefined })} · {formatDuration(latestRun.duration_seconds)}</span></> : <span className="text-muted-foreground">No runs</span>}</TableCell>
                     <TableCell><span className="font-medium tabular-nums">{health.total ? `${health.pass}/${health.total}` : "—"}</span><span className="mt-1 block text-xs text-muted-foreground">{health.label}</span></TableCell>
                     <TableCell><span className="font-medium">{schedule.auto_push ? "GitHub on" : "Local only"}</span><span className="mt-1 block text-xs text-muted-foreground">{schedule.full_validation ? "Extended checks" : "Standard checks"}</span></TableCell>
-                    <TableCell className="text-right"><div className="flex justify-end gap-1"><Button size="sm" variant={selected ? "secondary" : "ghost"} onClick={() => onSelectSport(item.id)}>Configure</Button><Button size="icon-sm" variant="ghost" onClick={() => onViewLogs(item.id)} aria-label={`View ${item.label} logs`}><History /></Button></div></TableCell>
+                    <TableCell className="text-right"><div className="flex justify-end gap-1"><Button size="sm" variant={selected ? "secondary" : "ghost"} onClick={() => onSelectSport(item.id)} aria-label={`Configure ${item.label}`}>Configure</Button><Button size="icon-sm" variant="ghost" onClick={() => onViewLogs(item.id)} aria-label={`View ${item.label} logs`}><History /></Button></div></TableCell>
                   </TableRow>
                 )
               })}
@@ -346,7 +347,7 @@ export function RefreshPage({
 
       <ScheduleOverview data={data} selectedSport={selected?.id} runtime={runtime} onSelectSport={onSelectSport} onViewLogs={onViewLogs} />
 
-      <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
+      <BalancedCardGrid className="xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
         <Card className="h-full">
           <CardHeader>
             <CardTitle>Manual refresh</CardTitle>
@@ -409,13 +410,13 @@ export function RefreshPage({
             </div>
           </CardContent>
         </Card>
-      </div>
+      </BalancedCardGrid>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <BalancedCardGrid className="lg:grid-cols-3">
         <WorkbookCard selected={selected} validation={selected?.validation || {}} repository={data?.project?.repository} branch={data?.project?.push_branch || data?.project?.branch} />
         <HealthCard validation={selected?.validation || {}} />
         <LatestRunCard selected={selected} run={selectedRun} onViewLogs={() => onViewLogs(selected?.id)} />
-      </div>
+      </BalancedCardGrid>
     </div>
   )
 }

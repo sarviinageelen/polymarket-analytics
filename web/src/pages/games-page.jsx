@@ -6,18 +6,23 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SelectField } from "@/components/shared/fields"
 import { MetricCard } from "@/components/shared/metric-card"
+import { BalancedCardGrid } from "@/components/shared/balanced-card-grid"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states"
 import { StatusBadge } from "@/components/shared/status-badge"
 import { buildQuery, formatMoney, formatNumber, formatPercent, formatShortDate, request } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 function GameActivityChart({ timeline, teamA, teamB }) {
-  const width = 900
-  const height = 350
-  const margin = { left: 48, right: 24, top: 22, bottom: 48 }
-  const priceBottom = 225
-  const volumeTop = 250
+  const isMobile = useIsMobile()
+  const width = isMobile ? 320 : 900
+  const height = isMobile ? 250 : 350
+  const margin = isMobile
+    ? { left: 40, right: 10, top: 18, bottom: 36 }
+    : { left: 48, right: 24, top: 22, bottom: 48 }
+  const priceBottom = isMobile ? 160 : 225
+  const volumeTop = isMobile ? 180 : 250
   const volumeBottom = height - margin.bottom
   const plotWidth = width - margin.left - margin.right
   const maxVolume = Math.max(1, ...timeline.map((row) => Number(row.volume || 0)))
@@ -38,7 +43,7 @@ function GameActivityChart({ timeline, teamA, teamB }) {
     if (current.length) segments.push(current)
     return segments
   }
-  const ticks = [0, 25, 50, 75, 100]
+  const ticks = isMobile ? [0, 50, 100] : [0, 25, 50, 75, 100]
   const labelIndexes = [...new Set([0, Math.floor((timeline.length - 1) / 2), timeline.length - 1])].filter((value) => value >= 0)
 
   return (
@@ -48,14 +53,14 @@ function GameActivityChart({ timeline, teamA, teamB }) {
         <span className="inline-flex items-center gap-2"><i className="size-2 rounded-full bg-zinc-700 dark:bg-zinc-300" />{teamB}</span>
         <span className="inline-flex items-center gap-2"><i className="h-2 w-3 rounded-sm bg-zinc-200 dark:bg-zinc-700" />Trading volume</span>
       </div>
-      <div className="overflow-x-auto" role="region" aria-label="Game activity chart; scroll horizontally to see the full chart" tabIndex="0">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[720px]" role="img">
+      <div className="overflow-hidden md:overflow-x-auto" role="region" aria-label="Game activity chart" tabIndex="0">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full md:min-w-[720px]" role="img">
           <title>Market prices and trading volume over time</title>
           <desc>Blue and dark lines show the average prices for each team. Gray bars show trade volume for each observed hour.</desc>
           <rect x={margin.left} y={margin.top} width={plotWidth} height={priceBottom - margin.top} rx="8" fill="var(--muted)" opacity=".35" />
           {ticks.map((tick) => {
             const y = yPrice(tick / 100)
-            return <g key={tick}><line x1={margin.left} x2={width - margin.right} y1={y} y2={y} stroke="var(--border)" /><text x={margin.left - 10} y={y + 4} textAnchor="end" fontSize="11" fill="var(--muted-foreground)">{tick}%</text></g>
+            return <g key={tick}><line x1={margin.left} x2={width - margin.right} y1={y} y2={y} stroke="var(--border)" /><text x={margin.left - 8} y={y + 4} textAnchor="end" fontSize={isMobile ? "9" : "11"} fill="var(--muted-foreground)">{tick}%</text></g>
           })}
           {timeline.map((row, index) => {
             const barWidth = Math.max(3, plotWidth / Math.max(1, timeline.length) - 3)
@@ -67,8 +72,8 @@ function GameActivityChart({ timeline, teamA, teamB }) {
             {row.average_price_a != null && <circle cx={x(index)} cy={yPrice(row.average_price_a)} r="3" fill="var(--chart-1)"><title>{`${row.hour}: ${teamA} ${formatPercent(Number(row.average_price_a) * 100)} · volume ${formatMoney(row.volume)}`}</title></circle>}
             {row.average_price_b != null && <circle cx={x(index)} cy={yPrice(row.average_price_b)} r="3" fill="var(--chart-2)"><title>{`${row.hour}: ${teamB} ${formatPercent(Number(row.average_price_b) * 100)} · volume ${formatMoney(row.volume)}`}</title></circle>}
           </g>)}
-          {labelIndexes.map((index) => <text key={index} x={x(index)} y={height - 16} textAnchor={index === 0 ? "start" : index === timeline.length - 1 ? "end" : "middle"} fontSize="11" fill="var(--muted-foreground)">{new Date(timeline[index]?.hour).toLocaleDateString([], { month: "short", day: "numeric" })}</text>)}
-          <text x={margin.left} y={volumeTop - 8} fontSize="11" fontWeight="600" fill="var(--muted-foreground)">Hourly volume</text>
+          {labelIndexes.map((index) => <text key={index} x={x(index)} y={height - (isMobile ? 10 : 16)} textAnchor={index === 0 ? "start" : index === timeline.length - 1 ? "end" : "middle"} fontSize={isMobile ? "9" : "11"} fill="var(--muted-foreground)">{new Date(timeline[index]?.hour).toLocaleDateString([], { month: "short", day: "numeric" })}</text>)}
+          <text x={margin.left} y={volumeTop - 8} fontSize={isMobile ? "9" : "11"} fontWeight="600" fill="var(--muted-foreground)">Hourly volume</text>
         </svg>
       </div>
       <figcaption className="mt-3 text-xs leading-5 text-muted-foreground">Prices use observed trade averages for each hour. Gaps mean no qualifying price was recorded for that team during the interval.</figcaption>
@@ -185,23 +190,23 @@ export function GamesPage({ sport, initialConditionId = "" }) {
       {!loading && !error && analysis && Number(analysis.tracked_wallets || 0) === 0 && !timeline.length && <Card><CardContent><EmptyState title="No wallet activity yet" description="This game is available in the market catalog, but no qualifying trades have been recorded. Choose a completed or active game." /></CardContent></Card>}
 
       {!loading && !error && analysis && (Number(analysis.tracked_wallets || 0) > 0 || timeline.length > 0) && <>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <BalancedCardGrid className="gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Tracked wallets" value={formatNumber(analysis.tracked_wallets)} detail="Wallets with an observed position" icon={UsersRound} />
           <MetricCard label="Recorded trades" value={formatNumber(totals.trades)} detail={`${formatNumber(timeline.length)} active hourly intervals`} icon={Activity} />
           <MetricCard label="Trading volume" value={formatMoney(totals.volume)} detail="Across the displayed timeline" icon={CircleDollarSign} />
           <MetricCard label={game.team_b || "Leading side"} value={formatPercent(Number(game.current_price_b || 0) * 100)} detail="Current observed market price" icon={BarChart3} tone="info" />
-        </div>
+        </BalancedCardGrid>
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
-          <Card>
+        <BalancedCardGrid className="xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
+          <Card className="h-full">
             <CardHeader><CardTitle>Price and trading activity</CardTitle><CardDescription>Observed team prices and volume share the same time axis.</CardDescription></CardHeader>
             <CardContent><GameActivityChart timeline={timeline} teamA={game.team_a} teamB={game.team_b} /></CardContent>
           </Card>
-          <Card>
+          <Card className="h-full">
             <CardHeader><CardTitle>Current wallet positions</CardTitle><CardDescription>Net exposure at the latest local snapshot.</CardDescription></CardHeader>
-            <CardContent><PositionDistribution counts={analysis.selection_counts || {}} teamA={game.team_a} teamB={game.team_b} /><p className="mt-5 text-xs leading-5 text-muted-foreground">{analysis.methodology}</p></CardContent>
+            <CardContent className="flex flex-1 flex-col"><PositionDistribution counts={analysis.selection_counts || {}} teamA={game.team_a} teamB={game.team_b} /><p className="mt-5 text-xs leading-5 text-muted-foreground">{analysis.methodology}</p></CardContent>
           </Card>
-        </div>
+        </BalancedCardGrid>
 
         <Collapsible open={tableOpen} onOpenChange={setTableOpen}>
           <Card>

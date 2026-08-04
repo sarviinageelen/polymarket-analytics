@@ -11,7 +11,7 @@ export function MetricCard({ label, value, detail, comparison, icon: Icon, tone 
   }[tone] || "bg-muted text-muted-foreground"
 
   return (
-    <Card size="sm" className={cn("gap-0", className)}>
+    <Card size="sm" className={cn("h-full gap-0", className)}>
       <CardContent className="flex items-start gap-3">
         {Icon && (
           <div className={cn("grid size-9 shrink-0 place-items-center rounded-lg", toneClass)} aria-hidden="true">

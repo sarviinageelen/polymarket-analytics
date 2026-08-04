@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { MetricCard } from "@/components/shared/metric-card"
+import { BalancedCardGrid } from "@/components/shared/balanced-card-grid"
 import { PageHeader } from "@/components/shared/page-header"
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states"
 import { StatusBadge } from "@/components/shared/status-badge"
@@ -22,7 +23,7 @@ function CalibrationSummary({ summary }) {
   const games = Number(summary?.favorite_games || 0)
   if (!games) {
     return (
-      <Card className="min-h-72">
+      <Card className="h-full min-h-72">
         <CardHeader><CardTitle>Market calibration</CardTitle><CardDescription>Did pre-match favorite prices match the results?</CardDescription></CardHeader>
         <CardContent><EmptyState compact title="Not enough resolved games" description="Calibration appears after resolved games have both a pre-match price and a recorded outcome." /></CardContent>
       </Card>
@@ -33,7 +34,7 @@ function CalibrationSummary({ summary }) {
   const delta = actual - price
 
   return (
-    <Card className="min-h-72">
+    <Card className="h-full min-h-72">
       <CardHeader>
         <CardTitle>Market calibration</CardTitle>
         <CardDescription>Did pre-match favorite prices match the results?</CardDescription>
@@ -74,7 +75,7 @@ function RecentGames({ games, onOpenGame }) {
   }, [games])
 
   return (
-    <Card className="min-h-72">
+    <Card className="h-full min-h-72">
       <CardHeader>
         <CardTitle>Recent games</CardTitle>
         <CardDescription>Open a completed game to inspect wallet activity.</CardDescription>
@@ -142,20 +143,20 @@ export function OverviewPage({ data, selected, onNavigate }) {
         actions={<Button className="h-9" onClick={() => onNavigate("refresh")}><RefreshCw /> Refresh data</Button>}
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <BalancedCardGrid className="gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Resolved markets" value={formatNumber(counts.resolved_markets)} detail={`${formatNumber(counts.markets)} total markets`} icon={CheckCircle2} tone="positive" />
         <MetricCard label="Trade rows" value={formatNumber(counts.trade_rows)} detail="Deduplicated analytical trades" icon={Database} />
         <MetricCard label="Tracked wallets" value={formatNumber(counts.bettors)} detail="Wallets with recorded trades" icon={WalletCards} />
         <MetricCard label="Qualified wallets" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ games · 70%+ profitable ledgers" icon={Trophy} tone="info" />
-      </div>
+      </BalancedCardGrid>
 
       {loading && <Card><CardContent><LoadingState /></CardContent></Card>}
       {error && <Card><CardContent><ErrorState description={error} onRetry={() => setRetryKey((current) => current + 1)} /></CardContent></Card>}
       {!loading && !error && analysis && (
-        <div className="grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
+        <BalancedCardGrid className="xl:grid-cols-[1.15fr_.85fr]">
           <CalibrationSummary summary={analysis.summary || {}} />
           <RecentGames games={catalog?.games || []} onOpenGame={(conditionId) => onNavigate("games", { condition_id: conditionId })} />
-        </div>
+        </BalancedCardGrid>
       )}
 
       <Card size="sm">

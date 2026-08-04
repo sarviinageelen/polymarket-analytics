@@ -18,7 +18,7 @@ export function AppHeader({ view, sport, sports, onSportChange, snapshot, onRefr
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="w-28 sm:w-40">
+        <div className="w-[8.25rem] sm:w-40">
           <SelectField
             value={sport}
             onValueChange={onSportChange}
