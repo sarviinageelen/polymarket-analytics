@@ -1,4 +1,4 @@
-"""Fetch the NFL 2025 full-time moneyline universe with Nav1212's ETL pieces.
+"""Fetch a sports full-time moneyline universe with Nav1212's ETL pieces.
 
 This adapter deliberately keeps the upstream repository's rate limiter and
 Parquet persister, but owns the market selection and pagination. The upstream
@@ -26,6 +26,7 @@ import pyarrow as pa
 
 ROOT = Path(__file__).resolve().parents[1]
 NAV_ROOT = ROOT / "external" / "Nav1212-PolyMarketAnalytics"
+sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(NAV_ROOT))
 
 from fetcher.config import get_config  # noqa: E402
@@ -34,6 +35,7 @@ from fetcher.persistence.parquet_persister import DataType, ParquetPersister  # 
 from fetcher.persistence.swappable_queue import SwappableQueue  # noqa: E402
 from fetcher.workers.trade_fetcher import TradeFetcher  # noqa: E402
 from fetcher.workers.worker_manager import WorkerManager  # noqa: E402
+from polymarket_analytics.trade_identity import identity_sql_columns, trade_identity  # noqa: E402
 
 
 PAGE_SIZE = 10_000
@@ -85,10 +87,21 @@ def parse_jsonish(value: Any, default: Any) -> Any:
         return default
 
 
-def load_moneyline_markets(events_path: Path) -> list[dict[str, Any]]:
+def load_moneyline_markets(
+    events_path: Path,
+    *,
+    season_label: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[dict[str, Any]]:
     events = json.loads(events_path.read_text(encoding="utf-8"))
     markets: list[dict[str, Any]] = []
     for event in events:
+        event_date = str(event.get("eventDate", ""))[:10]
+        if start_date and event_date < start_date:
+            continue
+        if end_date and event_date > end_date:
+            continue
         for market in event.get("markets") or []:
             if market.get("sportsMarketType") != "moneyline":
                 continue
@@ -96,11 +109,31 @@ def load_moneyline_markets(events_path: Path) -> list[dict[str, Any]]:
             if not condition_id:
                 continue
             start_ts = epoch(market.get("createdAt") or market.get("startDate"))
-            end_ts = epoch(market.get("endDate") or market.get("closedTime"))
+            end_ts = epoch(
+                market.get("closedTime")
+                or event.get("closedTime")
+                or market.get("endDate")
+                or event.get("endDate")
+            )
             if not start_ts:
                 start_ts = epoch(event.get("startTime"))
             if not end_ts or end_ts < start_ts:
                 end_ts = int(time.time())
+            market_closed = bool(market.get("closed"))
+            market_active = market.get("active")
+            market_archived = market.get("archived")
+            if market_closed:
+                market_status = "closed"
+            elif market_archived or market_active is False:
+                # Canceled/archived markets can remain technically open in
+                # Gamma while no longer accepting a meaningful market state.
+                market_status = "stale_unresolved"
+            elif bool(event.get("live")):
+                market_status = "live"
+            elif event_date <= datetime.now(timezone.utc).date().isoformat():
+                market_status = "open"
+            else:
+                market_status = "upcoming"
             markets.append(
                 {
                     "condition_id": str(condition_id),
@@ -108,13 +141,25 @@ def load_moneyline_markets(events_path: Path) -> list[dict[str, Any]]:
                     "event_slug": event.get("slug", ""),
                     "title": market.get("question") or event.get("title", ""),
                     "market_type": "moneyline",
-                    "season": "nfl-2025",
+                    "season": season_label,
                     "market_start_ts": start_ts,
                     "market_end_ts": end_ts,
                     "outcomes": parse_jsonish(market.get("outcomes"), []),
                     "outcome_prices": parse_jsonish(market.get("outcomePrices"), []),
                     "slug": market.get("slug", ""),
-                    "event_date": str(event.get("eventDate", ""))[:10],
+                    "event_date": event_date,
+                    "event_closed": bool(event.get("closed")),
+                    "market_closed": bool(market.get("closed")),
+                    "event_live": bool(event.get("live")),
+                    "event_ended": bool(event.get("ended")),
+                    "market_active": market_active,
+                    "market_archived": market_archived,
+                    "accepting_orders": market.get("acceptingOrders"),
+                    "uma_resolution_status": market.get("umaResolutionStatus"),
+                    "event_active": event.get("active"),
+                    "event_archived": event.get("archived"),
+                    "event_period": event.get("period"),
+                    "market_status": market_status,
                 }
             )
     return markets
@@ -176,22 +221,23 @@ class NavScopedTradeFetcher(TradeFetcher):
         )
 
     def fetch_market(self, market: dict[str, Any]) -> list[dict[str, Any]]:
+        now = int(time.time())
+        # Scheduled endDate is not a safe upper bound for unresolved markets:
+        # postponed/canceled markets can continue emitting trades afterward.
+        # Closed markets can use closedTime, capped at the capture timestamp.
+        fetch_end = (
+            min(int(market["market_end_ts"] or now), now)
+            if market["market_closed"]
+            else now
+        )
+        fetch_end = max(fetch_end, int(market["market_start_ts"]))
         rows = self.fetch_window(
-            market["condition_id"], market["market_start_ts"], market["market_end_ts"]
+            market["condition_id"], market["market_start_ts"], fetch_end
         )
         seen: set[tuple[Any, ...]] = set()
         output: list[dict[str, Any]] = []
         for row in rows:
-            key = (
-                row.get("proxyWallet"),
-                row.get("asset"),
-                row.get("conditionId"),
-                row.get("side"),
-                row.get("size"),
-                row.get("price"),
-                row.get("timestamp"),
-                row.get("transactionHash"),
-            )
+            key = trade_identity(row)
             if key in seen:
                 continue
             seen.add(key)
@@ -264,6 +310,34 @@ def load_existing_results(trade_dir: Path) -> dict[str, dict[str, Any]]:
     }
 
 
+def unique_trade_counts(trade_dir: Path) -> tuple[int, int]:
+    """Return raw and exact-key-deduplicated trade counts for a Parquet snapshot."""
+
+    files = list(trade_dir.glob("*.parquet"))
+    if not files:
+        return 0, 0
+    import duckdb
+
+    pattern = str(trade_dir / "*.parquet").replace("'", "''")
+    conn = duckdb.connect()
+    identity_columns = ", ".join(identity_sql_columns())
+    try:
+        raw = int(conn.execute(f"SELECT count(*) FROM read_parquet('{pattern}', union_by_name=true)").fetchone()[0])
+        unique = int(
+            conn.execute(
+                f"""
+                SELECT count(*) FROM (
+                    SELECT DISTINCT {identity_columns}
+                    FROM read_parquet('{pattern}', union_by_name=true)
+                )
+                """
+            ).fetchone()[0]
+        )
+    finally:
+        conn.close()
+    return raw, unique
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--events", default="data/raw/nfl_2025_events.json")
@@ -272,19 +346,51 @@ def main() -> int:
     )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--series-id", type=int, default=10187)
+    parser.add_argument("--season-label", default="NFL 2025")
+    parser.add_argument("--start-date", help="Inclusive YYYY-MM-DD event date")
+    parser.add_argument("--end-date", help="Inclusive YYYY-MM-DD event date")
     args = parser.parse_args()
 
     out_dir = ROOT / args.out_dir
     trade_dir = out_dir / "bronze" / "trades"
 
-    markets = load_moneyline_markets(ROOT / args.events)
+    markets = load_moneyline_markets(
+        ROOT / args.events,
+        season_label=args.season_label,
+        start_date=args.start_date,
+        end_date=args.end_date,
+    )
     if args.limit:
         markets = markets[: args.limit]
     if not markets:
-        raise SystemExit("no NFL 2025 moneyline markets found")
+        raise SystemExit("no moneyline markets found")
     existing = load_existing_results(trade_dir)
-    pending_markets = [market for market in markets if market["condition_id"] not in existing]
-    print(f"moneyline markets in scope={len(markets)} recovered={len(existing)} pending={len(pending_markets)}")
+    previous_manifest_path = out_dir / "manifest.json"
+    previous_manifest = (
+        json.loads(previous_manifest_path.read_text(encoding="utf-8"))
+        if previous_manifest_path.exists()
+        else {}
+    )
+    previous_results = {
+        str(row.get("condition_id")): row
+        for row in previous_manifest.get("market_results", [])
+        if row.get("condition_id")
+    }
+
+    def should_refresh(market: dict[str, Any]) -> bool:
+        condition_id = market["condition_id"]
+        if condition_id not in existing:
+            return True
+        previous = previous_results.get(condition_id, {})
+        return not market["market_closed"] or not bool(previous.get("market_closed", True))
+
+    pending_markets = [market for market in markets if should_refresh(market)]
+    reusable_markets = [market for market in markets if not should_refresh(market)]
+    print(
+        f"moneyline markets in scope={len(markets)} recovered={len(reusable_markets)} "
+        f"refreshing={len(pending_markets)}"
+    )
 
     # Reuse Nav1212's Parquet writer, with a schema that preserves the fields
     # needed for our replay instead of the repository's narrower TODO schema.
@@ -300,11 +406,22 @@ def main() -> int:
 
     config = get_config()
     manager = WorkerManager(config=config)
-    results: list[dict[str, Any]] = [
-        existing[market["condition_id"]]
-        for market in markets
-        if market["condition_id"] in existing
-    ]
+    results: list[dict[str, Any]] = []
+    for market in reusable_markets:
+        recovered = dict(existing[market["condition_id"]])
+        recovered.update(
+            {
+                "condition_id": market["condition_id"],
+                "event_id": market["event_id"],
+                "title": market["title"],
+                "status": "reused",
+                "start_ts": market["market_start_ts"],
+                "end_ts": market["market_end_ts"],
+                "market_closed": market["market_closed"],
+                "market_status": market["market_status"],
+            }
+        )
+        results.append(recovered)
     failures: list[dict[str, Any]] = []
     lock = threading.Lock()
 
@@ -321,6 +438,9 @@ def main() -> int:
                 "status": "fetched",
                 "start_ts": market["market_start_ts"],
                 "end_ts": market["market_end_ts"],
+                "market_closed": market["market_closed"],
+                "market_status": market["market_status"],
+                "actual_fetch_end_ts": int(time.time()),
             }
         finally:
             fetcher.close()
@@ -353,19 +473,28 @@ def main() -> int:
     failures.sort(key=lambda row: int(row["event_id"]))
     out_dir.mkdir(parents=True, exist_ok=True)
     write_markets(out_dir / "moneyline_markets.parquet", markets)
+    raw_trade_rows, unique_trade_rows = unique_trade_counts(trade_dir)
     manifest = {
         "source_repo": "https://github.com/Nav1212/PolyMarketAnalytics",
         "source_revision": git_revision(),
-        "season": "NFL 2025",
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "capture_time_utc": datetime.now(timezone.utc).isoformat(),
+        "series_id": args.series_id,
+        "season": args.season_label,
         "market_filter": "sportsMarketType == moneyline",
         "taker_only": False,
+        "events_path": str(ROOT / args.events),
+        "start_date": args.start_date,
+        "end_date": args.end_date,
+        "include_open_markets": True,
         "market_count": len(markets),
         "market_results": results,
         "failures": failures,
-        "trade_rows": sum(int(row["rows"]) for row in results),
+        "trade_rows": unique_trade_rows,
+        "trade_rows_raw": raw_trade_rows,
     }
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    print(json.dumps({key: manifest[key] for key in ("source_revision", "market_count", "trade_rows", "failures")}, indent=2))
+    print(json.dumps({key: manifest[key] for key in ("source_revision", "market_count", "trade_rows", "trade_rows_raw", "failures")}, indent=2))
     return 1 if failures else 0
 
 

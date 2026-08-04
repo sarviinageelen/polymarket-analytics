@@ -63,6 +63,26 @@ The analysis scripts write CSV and JSON results under the ignored experiment
 directory. The Excel exporter writes to `reports/generated/`. Markdown reports
 under `reports/` are small, reviewable, and suitable for Git.
 
+## WNBA ongoing-season extension
+
+The WNBA run uses series 10105 and a regular-season window of May 8 through
+September 24, 2026. Event discovery requests both closed=true and closed=false
+Gamma keyset views, unions them by event ID, and filters nested markets to
+sportsMarketType == moneyline.
+
+The WNBA experiment is stored under
+data/experiments/nav_wnba_2026_moneyline/. Its market_dim keeps market status,
+event status, current prices, final prices, and resolution type. A market can
+be unresolved even when its event is closed; archived/inactive unresolved
+markets are labeled stale_unresolved.
+
+The collector refreshes unresolved markets through the capture timestamp. The
+DuckDB build deduplicates by canonical source-trade identity before creating
+wallet-game ledgers, so refreshing an open market cannot inflate realized P&L.
+Unresolved
+ledgers expose mark-to-market values but leave settlement and realized P&L
+null.
+
 ## Design principles
 
 1. Preserve raw inputs before transforming them.

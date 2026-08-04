@@ -1,0 +1,331 @@
+{
+  "generated_at_utc": "2026-08-03T14:41:47.642460+00:00",
+  "local": {
+    "manifest": {
+      "series_id": "10187",
+      "season": "NFL 2025",
+      "start_date": "2025-09-04",
+      "end_date": "2026-02-08",
+      "generated_at_utc": "2026-08-02T11:38:10.163536+00:00",
+      "market_count": 285,
+      "trade_count": 1677376,
+      "ledger_count": 332084
+    },
+    "market_status_resolution_counts": {
+      "closed:resolved": 284,
+      "closed:tie": 1
+    },
+    "ledger_result_counts": {
+      "flat": 6323,
+      "loss": 154245,
+      "win": 171516
+    },
+    "event_cache_events": 285,
+    "event_cache_moneyline_markets": 285
+  },
+  "external": {
+    "gamma_scope": {
+      "remote_events": 285,
+      "local_events": 285,
+      "remote_moneyline_markets": 285,
+      "local_moneyline_markets": 285,
+      "missing_local_conditions": 0,
+      "extra_local_conditions": 0
+    }
+  },
+  "onchain": {
+    "samples": [
+      {
+        "transaction_hash": "0x7dacb59c0a9929bbafcf4bfa3cb744bb3044ff2ebf568d58fb6dd7c54269fb6d",
+        "endpoint": "https://polygon.drpc.org",
+        "receipt_found": true,
+        "status": "0x1"
+      },
+      {
+        "transaction_hash": "0x36509e721c3717a7c03608ad6f535e0b09baf21a760b6cc87a631edf7e20524c",
+        "endpoint": "https://polygon.drpc.org",
+        "receipt_found": true,
+        "status": "0x1"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "event cache scope and moneyline filter",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "events": 285,
+        "moneyline_markets": 285,
+        "db_markets": 285,
+        "duplicate_event_ids": 0,
+        "duplicate_condition_ids": 0
+      }
+    },
+    {
+      "name": "manifest versus DuckDB market census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_market_count": 285,
+        "db_market_count": 285,
+        "manifest_failures": 0,
+        "manifest_condition_ids": 285,
+        "db_condition_ids": 285
+      }
+    },
+    {
+      "name": "Parquet versus DuckDB unique trade census",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "manifest_unique_trades": 1677376,
+        "parquet_raw_trades": 1677376,
+        "parquet_unique_trades": 1677376,
+        "duckdb_trades": 1677376,
+        "refresh_duplicate_rows": 0
+      }
+    },
+    {
+      "name": "DuckDB canonical trade identity is unique",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "duplicate_trade_rows": 0
+      }
+    },
+    {
+      "name": "Trade counts reconcile by market",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets_with_count_mismatch": 0,
+        "absolute_trade_row_difference": 0
+      }
+    },
+    {
+      "name": "Trade identity has no conflicting outcome facts",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "conflicting_identity_keys": 0,
+        "conflicting_duplicate_rows": 0
+      }
+    },
+    {
+      "name": "trade-to-market referential integrity",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "orphan_trade_rows": 0,
+        "ledger_rows": 332084
+      }
+    },
+    {
+      "name": "market shape and price domains",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "duplicate_market_keys": 0,
+        "bad_market_rows": 0
+      }
+    },
+    {
+      "name": "trade domains and required fields",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "invalid_trade_rows": 0,
+        "null_wallet": 0,
+        "null_condition_id": 0,
+        "null_event_id": 0,
+        "null_trade_timestamp": 0
+      }
+    },
+    {
+      "name": "trade timestamps are plausible",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "future_trade_rows": 0,
+        "out_of_window_rows": 0,
+        "capture_time_utc": "2026-08-03T14:41:14.077861+00:00"
+      }
+    },
+    {
+      "name": "replay accounting identities",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 1.234002411365509e-08,
+        "max_realized_pnl_residual": 0.0,
+        "unresolved_with_settlement_or_realized_pnl": 0,
+        "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "candidate filters match saved CSVs",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "5_game_csv": 713,
+        "5_game_query": 713,
+        "10_game_csv": 374,
+        "10_game_query": 374
+      }
+    },
+    {
+      "name": "manifest market results cover DuckDB",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_results": 285,
+        "db_markets": 285,
+        "missing_in_db": 0
+      }
+    },
+    {
+      "name": "workbook reload and profile hyperlinks",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "sheets": [
+          "Read Me",
+          "Odds vs Results",
+          "Games",
+          "Picks Matrix (10+)",
+          "Picks Matrix (5+)",
+          "Picks Ledger (10+)",
+          "Picks Ledger (5+)",
+          "Open Exposure",
+          "Bettor Summary (10+)",
+          "Bettor Summary (5+)"
+        ],
+        "hyperlinks_to_profiles": 53417,
+        "sample_profile_url": "https://polymarket.com/profile/0xa9878e59934ab507f9039bcb917c1bae0451141d",
+        "table_counts": {
+          "Read Me": 0,
+          "Odds vs Results": 2,
+          "Games": 1,
+          "Picks Matrix (10+)": 0,
+          "Picks Matrix (5+)": 0,
+          "Picks Ledger (10+)": 1,
+          "Picks Ledger (5+)": 1,
+          "Open Exposure": 1,
+          "Bettor Summary (10+)": 1,
+          "Bettor Summary (5+)": 1
+        },
+        "worksheet_filter_refs": {
+          "Picks Matrix (10+)": "A7:KF381",
+          "Picks Matrix (5+)": "A7:KF720"
+        }
+      }
+    },
+    {
+      "name": "workbook table/filter XML compatibility",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "table_parts": 8,
+        "table_auto_filters": 8,
+        "worksheet_filter_counts": {
+          "xl/worksheets/sheet1.xml": 0,
+          "xl/worksheets/sheet10.xml": 0,
+          "xl/worksheets/sheet2.xml": 0,
+          "xl/worksheets/sheet3.xml": 0,
+          "xl/worksheets/sheet4.xml": 1,
+          "xl/worksheets/sheet5.xml": 1,
+          "xl/worksheets/sheet6.xml": 0,
+          "xl/worksheets/sheet7.xml": 0,
+          "xl/worksheets/sheet8.xml": 0,
+          "xl/worksheets/sheet9.xml": 0
+        }
+      }
+    },
+    {
+      "name": "Gamma event and moneyline census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "remote_events": 285,
+        "local_events": 285,
+        "remote_moneyline_markets": 285,
+        "local_moneyline_markets": 285,
+        "missing_local_conditions": 0,
+        "extra_local_conditions": 0
+      }
+    },
+    {
+      "name": "Gamma market metadata spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "event_id": "188978",
+        "condition_id": "0x204d24f3a0f5dd5fca825292bdeab6a97af3978b2caa2b21bb37e610eddfff5d",
+        "local_market_closed": true,
+        "remote_market_closed": true,
+        "outcomes_match": true
+      }
+    },
+    {
+      "name": "CLOB status spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "condition_id": "0x204d24f3a0f5dd5fca825292bdeab6a97af3978b2caa2b21bb37e610eddfff5d",
+        "closed": true,
+        "accepting_orders": false,
+        "local_market_closed": true
+      }
+    },
+    {
+      "name": "ESPN schedule spot check",
+      "status": "pass",
+      "severity": "medium",
+      "evidence": {
+        "event_id": "188978",
+        "local_title": "Seattle vs. New England",
+        "local_teams": [
+          "seattle",
+          "newengland"
+        ],
+        "espn_teams": [
+          [
+            "newenglandpatriots",
+            "seattleseahawks"
+          ]
+        ],
+        "espn_sport": "football/nfl",
+        "scoreboard_date": "20260208"
+      }
+    },
+    {
+      "name": "Polygon transaction receipt spot check",
+      "status": "pass",
+      "severity": "medium",
+      "evidence": {
+        "samples": [
+          {
+            "transaction_hash": "0x7dacb59c0a9929bbafcf4bfa3cb744bb3044ff2ebf568d58fb6dd7c54269fb6d",
+            "endpoint": "https://polygon.drpc.org",
+            "receipt_found": true,
+            "status": "0x1"
+          },
+          {
+            "transaction_hash": "0x36509e721c3717a7c03608ad6f535e0b09baf21a760b6cc87a631edf7e20524c",
+            "endpoint": "https://polygon.drpc.org",
+            "receipt_found": true,
+            "status": "0x1"
+          }
+        ],
+        "usable_samples": 2
+      }
+    }
+  ],
+  "counts": {
+    "pass": 20,
+    "warning": 0,
+    "fail": 0,
+    "not_run": 0
+  }
+}

@@ -1,0 +1,247 @@
+{
+  "generated_at_utc": "2026-08-04T03:52:46.199168+00:00",
+  "local": {
+    "manifest": {
+      "series_id": "10105",
+      "season": "WNBA 2026",
+      "start_date": "2026-05-08",
+      "end_date": "2026-09-24",
+      "generated_at_utc": "2026-08-04T03:51:51.408306+00:00",
+      "market_count": 265,
+      "trade_count": 839748,
+      "ledger_count": 103600
+    },
+    "market_status_resolution_counts": {
+      "closed:resolved": 227,
+      "open:unresolved": 1,
+      "stale_unresolved:unresolved": 1,
+      "upcoming:unresolved": 36
+    },
+    "ledger_result_counts": {
+      "flat": 239,
+      "loss": 45778,
+      "unsettled": 203,
+      "win": 57380
+    },
+    "event_cache_events": 265,
+    "event_cache_moneyline_markets": 265
+  },
+  "external": {},
+  "onchain": {},
+  "checks": [
+    {
+      "name": "event cache scope and moneyline filter",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "events": 265,
+        "moneyline_markets": 265,
+        "db_markets": 265,
+        "duplicate_event_ids": 0,
+        "duplicate_condition_ids": 0
+      }
+    },
+    {
+      "name": "manifest versus DuckDB market census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_market_count": 265,
+        "db_market_count": 265,
+        "manifest_failures": 0,
+        "manifest_condition_ids": 265,
+        "db_condition_ids": 265
+      }
+    },
+    {
+      "name": "Parquet versus DuckDB unique trade census",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "manifest_unique_trades": 839748,
+        "parquet_raw_trades": 874981,
+        "parquet_unique_trades": 839748,
+        "duckdb_trades": 839748,
+        "refresh_duplicate_rows": 35233
+      }
+    },
+    {
+      "name": "DuckDB canonical trade identity is unique",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "duplicate_trade_rows": 0
+      }
+    },
+    {
+      "name": "Trade counts reconcile by market",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets_with_count_mismatch": 0,
+        "absolute_trade_row_difference": 0
+      }
+    },
+    {
+      "name": "Trade identity has no conflicting outcome facts",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "conflicting_identity_keys": 0,
+        "conflicting_duplicate_rows": 0
+      }
+    },
+    {
+      "name": "trade-to-market referential integrity",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "orphan_trade_rows": 0,
+        "ledger_rows": 103600
+      }
+    },
+    {
+      "name": "market shape and price domains",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "duplicate_market_keys": 0,
+        "bad_market_rows": 0
+      }
+    },
+    {
+      "name": "trade domains and required fields",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "invalid_trade_rows": 0,
+        "null_wallet": 0,
+        "null_condition_id": 0,
+        "null_event_id": 0,
+        "null_trade_timestamp": 0
+      }
+    },
+    {
+      "name": "trade timestamps are plausible",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "future_trade_rows": 0,
+        "out_of_window_rows": 0,
+        "capture_time_utc": "2026-08-04T03:52:34.965427+00:00"
+      }
+    },
+    {
+      "name": "replay accounting identities",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 1.1641532182693481e-10,
+        "max_realized_pnl_residual": 0.0,
+        "unresolved_with_settlement_or_realized_pnl": 0,
+        "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "candidate filters match saved CSVs",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "5_game_csv": 353,
+        "5_game_query": 353,
+        "10_game_csv": 216,
+        "10_game_query": 216
+      }
+    },
+    {
+      "name": "manifest market results cover DuckDB",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_results": 265,
+        "db_markets": 265,
+        "missing_in_db": 0
+      }
+    },
+    {
+      "name": "workbook reload and profile hyperlinks",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "sheets": [
+          "Read Me",
+          "Odds vs Results",
+          "Games",
+          "Picks Matrix (10+)",
+          "Picks Matrix (5+)",
+          "Picks Ledger (10+)",
+          "Picks Ledger (5+)",
+          "Open Exposure",
+          "Bettor Summary (10+)",
+          "Bettor Summary (5+)"
+        ],
+        "hyperlinks_to_profiles": 28793,
+        "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
+        "table_counts": {
+          "Read Me": 0,
+          "Odds vs Results": 2,
+          "Games": 1,
+          "Picks Matrix (10+)": 0,
+          "Picks Matrix (5+)": 0,
+          "Picks Ledger (10+)": 1,
+          "Picks Ledger (5+)": 1,
+          "Open Exposure": 1,
+          "Bettor Summary (10+)": 1,
+          "Bettor Summary (5+)": 1
+        },
+        "worksheet_filter_refs": {
+          "Picks Matrix (10+)": "A7:JK223",
+          "Picks Matrix (5+)": "A7:JK360"
+        }
+      }
+    },
+    {
+      "name": "workbook table/filter XML compatibility",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "table_parts": 8,
+        "table_auto_filters": 8,
+        "worksheet_filter_counts": {
+          "xl/worksheets/sheet1.xml": 0,
+          "xl/worksheets/sheet10.xml": 0,
+          "xl/worksheets/sheet2.xml": 0,
+          "xl/worksheets/sheet3.xml": 0,
+          "xl/worksheets/sheet4.xml": 1,
+          "xl/worksheets/sheet5.xml": 1,
+          "xl/worksheets/sheet6.xml": 0,
+          "xl/worksheets/sheet7.xml": 0,
+          "xl/worksheets/sheet8.xml": 0,
+          "xl/worksheets/sheet9.xml": 0
+        }
+      }
+    },
+    {
+      "name": "External Gamma/CLOB/ESPN checks",
+      "status": "not_run",
+      "severity": "low",
+      "evidence": {
+        "reason": "--skip-network"
+      }
+    },
+    {
+      "name": "Polygon transaction receipt spot check",
+      "status": "not_run",
+      "severity": "low",
+      "evidence": {
+        "reason": "--skip-network"
+      }
+    }
+  ],
+  "counts": {
+    "pass": 15,
+    "warning": 0,
+    "fail": 0,
+    "not_run": 2
+  }
+}

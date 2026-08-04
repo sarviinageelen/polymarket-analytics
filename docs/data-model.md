@@ -5,7 +5,7 @@
 | Dataset/table | Grain | Main use |
 |---|---|---|
 | `market_dim` | One moneyline market/game | Teams, dates, outcomes, final prices |
-| `trade_fact` | One API trade row | Full-fidelity replay and microstructure checks |
+| `trade_fact` | One canonical API trade fill | Full-fidelity replay and microstructure checks |
 | `wallet_game_ledger` | One wallet × game | Performance filters and bettor rankings |
 | Wallet summary CSV | One wallet | Cross-game ranking and consistency |
 
@@ -20,6 +20,14 @@
 - `size`: number of shares;
 - `timestamp` and `trade_time_utc`: event time;
 - `transaction_hash`: blockchain transaction reference, not a unique fill ID.
+
+The canonical trade identity is the normalized tuple
+`proxyWallet + asset + conditionId + side + size + price + timestamp + transactionHash`.
+Wallet addresses, sides, and transaction hashes are case-normalized. API
+refreshes can overlap, and enrichment fields such as bettor names and event
+titles can change; those fields are not used to decide whether a fill is new.
+Bronze keeps the raw overlap count for auditability, while `trade_fact` keeps
+exactly one row per canonical identity.
 
 ## Replay logic
 
@@ -43,6 +51,25 @@ matters for sell-only and partially hedged activity.
 Most markets resolve as `[1, 0]` or `[0, 1]`. One captured Packers–Cowboys
 market resolves as `[0.5, 0.5]`; it is stored as `resolution_type = 'tie'` and
 excluded from strict one-winner calculations when appropriate.
+
+## Ongoing-market fields
+
+For an ongoing season, market status and resolution are separate concepts:
+
+| Field | Meaning |
+|---|---|
+| market_status | closed, live, open, upcoming, or stale_unresolved |
+| resolution_type | resolved, tie, or unresolved |
+| current_price_a/b | Latest cached Gamma prices used for mark-to-market |
+| final_price_a/b | Populated only for resolved or tie markets |
+| settlement_value | Populated only for resolved or tie wallet-game ledgers |
+| realized_pnl | Populated only for resolved or tie wallet-game ledgers |
+| mark_to_market_pnl | Current cash flow plus current position value |
+
+Never turn a current price of 1.0 into a final result unless the market is
+also marked closed and the resulting resolution passes the database rules.
+This protects the ranking from premature settlement and canceled-market
+artifacts.
 
 ## Filtering bettors
 
