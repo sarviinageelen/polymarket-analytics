@@ -437,10 +437,11 @@ function RunDetails({
   )
 }
 
-export function RunsPage({ data, error, onRefresh, onCopy }) {
+export function RunsPage({ data, error, sport, onRefresh, onCopy }) {
   const runtime = data?.runtime || {}
-  const runs = runtime.history || []
-  const active = runtime.running ? runtime.last_run : null
+  const allRuns = runtime.history || []
+  const runs = sport ? allRuns.filter((run) => run.sport === sport) : allRuns
+  const active = runtime.running && (!sport || runtime.last_run?.sport === sport) ? runtime.last_run : null
   const [selectedRunId, setSelectedRunId] = useState(null)
   const [runDetail, setRunDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -561,7 +562,7 @@ export function RunsPage({ data, error, onRefresh, onCopy }) {
     <div className="space-y-6">
       <PageHeader
         title="Run history"
-        description="Review refresh outcomes, validation coverage, publication details, and diagnostic logs."
+        description={`Review ${sport ? sportLabel(sport) : "dataset"} refresh outcomes, validation coverage, publication details, and diagnostic logs.`}
         meta={outcome.completed > 0 && <StatusBadge status={outcome.successes === outcome.completed ? "success" : "neutral"}>{outcome.successes} of {outcome.completed} completed successfully</StatusBadge>}
         actions={(
           <Button variant="outline" className="h-9" onClick={refreshHistory} disabled={!data || refreshing}>
@@ -600,7 +601,7 @@ export function RunsPage({ data, error, onRefresh, onCopy }) {
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Recent refreshes</CardTitle>
-          <CardDescription>The controller keeps the ten most recent run records and up to forty structured log files.</CardDescription>
+          <CardDescription>The controller keeps up to forty recent run records and their structured logs.</CardDescription>
           {runs.length > 0 && <CardAction><span className="text-xs tabular-nums text-muted-foreground">{runs.length} {runs.length === 1 ? "run" : "runs"}</span></CardAction>}
         </CardHeader>
         <CardContent>

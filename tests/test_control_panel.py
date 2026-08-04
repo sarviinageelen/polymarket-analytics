@@ -1,13 +1,16 @@
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from scripts.control_panel_server import (
     SPORTS,
     build_pipeline_commands,
     interval_seconds,
+    next_due_sport,
     normalize_config,
     parse_output_metrics,
     public_download_url,
     redact_log_text,
+    schedule_config,
 )
 
 
@@ -22,7 +25,63 @@ class ControlPanelTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normalize_config({"sport": "mlb_2026"})
         with self.assertRaises(ValueError):
+            normalize_config({"schedules": {"mlb_2026": {"enabled": True}}})
+        with self.assertRaises(ValueError):
             normalize_config({"interval_value": 0})
+
+    def test_legacy_schedule_migrates_without_enabling_other_datasets(self):
+        config = normalize_config(
+            {
+                "sport": "wnba_2026",
+                "interval_value": 1,
+                "interval_unit": "hours",
+                "enabled": True,
+                "auto_push": True,
+            }
+        )
+        self.assertTrue(schedule_config(config, "wnba_2026")["enabled"])
+        self.assertEqual(interval_seconds(config, "wnba_2026"), 3600)
+        self.assertFalse(schedule_config(config, "wnba_2025")["enabled"])
+        self.assertFalse(schedule_config(config, "nfl_2025")["enabled"])
+
+    def test_each_dataset_schedule_can_be_updated_independently(self):
+        base = normalize_config(
+            {
+                "schedules": {
+                    "wnba_2026": {"enabled": True, "interval_value": 1},
+                    "wnba_2025": {"enabled": True, "interval_value": 12},
+                },
+                "push_branch": "main",
+            }
+        )
+        updated = normalize_config(
+            {"sport": "wnba_2025", "enabled": False, "interval_value": 24},
+            base,
+        )
+        self.assertTrue(schedule_config(updated, "wnba_2026")["enabled"])
+        self.assertEqual(schedule_config(updated, "wnba_2026")["interval_value"], 1)
+        self.assertFalse(schedule_config(updated, "wnba_2025")["enabled"])
+        self.assertEqual(schedule_config(updated, "wnba_2025")["interval_value"], 24)
+        self.assertEqual(updated["push_branch"], "main")
+
+    def test_scheduler_selects_the_oldest_due_enabled_dataset(self):
+        now = datetime(2026, 8, 4, 6, 0, tzinfo=timezone.utc)
+        config = normalize_config(
+            {
+                "schedules": {
+                    "wnba_2026": {"enabled": True},
+                    "wnba_2025": {"enabled": True},
+                    "nfl_2025": {"enabled": False},
+                }
+            }
+        )
+        next_runs = {
+            "wnba_2026": (now - timedelta(minutes=5)).isoformat(),
+            "wnba_2025": (now - timedelta(minutes=15)).isoformat(),
+            "nfl_2025": (now - timedelta(hours=1)).isoformat(),
+        }
+        self.assertEqual(next_due_sport(config, next_runs, now), "wnba_2025")
+        self.assertIsNone(next_due_sport(config, {key: now.isoformat() for key in SPORTS}, now - timedelta(seconds=1)))
 
     def test_pipeline_is_explicit_and_cache_aware(self):
         commands = build_pipeline_commands("wnba_2026", full_validation=False)

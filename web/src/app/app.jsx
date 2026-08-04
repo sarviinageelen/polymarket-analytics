@@ -13,14 +13,14 @@ import { RefreshPage } from "@/pages/refresh-page"
 import { RunsPage } from "@/pages/runs-page"
 import { WalletsPage } from "@/pages/wallets-page"
 import { request } from "@/lib/api"
-import { FALLBACK_CONFIG, FALLBACK_SPORTS, normalizeView } from "@/lib/constants"
+import { DEFAULT_SPORT, FALLBACK_SCHEDULE, FALLBACK_SPORTS, normalizeView } from "@/lib/constants"
 
 function readRoute() {
   const params = new URLSearchParams(window.location.search)
   const legacyView = params.get("view") || "overview"
   return {
     view: normalizeView(legacyView),
-    sport: params.get("sport") || FALLBACK_CONFIG.sport,
+    sport: params.get("sport") || DEFAULT_SPORT,
     conditionId: params.get("condition_id") || "",
     walletDimension: legacyView === "game" ? "game" : "team",
   }
@@ -34,7 +34,7 @@ export function App() {
   const [conditionId, setConditionId] = useState(INITIAL_ROUTE.conditionId)
   const [walletDimension, setWalletDimension] = useState(INITIAL_ROUTE.walletDimension)
   const [data, setData] = useState(null)
-  const [form, setForm] = useState(FALLBACK_CONFIG)
+  const [form, setForm] = useState(FALLBACK_SCHEDULE)
   const [formDirty, setFormDirty] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [statusRefreshing, setStatusRefreshing] = useState(false)
@@ -43,12 +43,18 @@ export function App() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
-  const formInitialized = useRef(false)
   const dirtyRef = useRef(false)
   const sportRef = useRef(sport)
 
   useEffect(() => { dirtyRef.current = formDirty }, [formDirty])
   useEffect(() => { sportRef.current = sport }, [sport])
+
+  useEffect(() => {
+    if (dirtyRef.current) return
+    const schedule = data?.config?.schedules?.[sport]
+      || data?.sports?.find((item) => item.id === sport)?.schedule
+    if (schedule) setForm({ ...FALLBACK_SCHEDULE, ...schedule })
+  }, [sport])
 
   const loadStatus = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setStatusRefreshing(true)
@@ -58,16 +64,22 @@ export function App() {
       setControllerReachable(true)
       setError("")
 
-      if (!formInitialized.current || !dirtyRef.current) {
-        setForm({ ...FALLBACK_CONFIG, ...(response.config || {}) })
-        formInitialized.current = true
+      if (!dirtyRef.current) {
+        const schedule = response.config?.schedules?.[sportRef.current]
+          || response.sports?.find((item) => item.id === sportRef.current)?.schedule
+          || FALLBACK_SCHEDULE
+        setForm({ ...FALLBACK_SCHEDULE, ...schedule })
       }
 
       const availableSports = response.sports || []
       if (availableSports.length && !availableSports.some((item) => item.id === sportRef.current)) {
-        const fallbackSport = response.config?.sport || availableSports[0].id
+        const fallbackSport = availableSports[0].id
         setSport(fallbackSport)
         sportRef.current = fallbackSport
+        setForm({
+          ...FALLBACK_SCHEDULE,
+          ...(response.config?.schedules?.[fallbackSport] || availableSports[0]?.schedule || {}),
+        })
       }
       return response
     } catch (cause) {
@@ -127,12 +139,36 @@ export function App() {
 
   function changeSport(nextSport) {
     setSport(nextSport)
+    sportRef.current = nextSport
     setConditionId("")
+    setForm({
+      ...FALLBACK_SCHEDULE,
+      ...(data?.config?.schedules?.[nextSport] || data?.sports?.find((item) => item.id === nextSport)?.schedule || {}),
+    })
+    dirtyRef.current = false
+    setFormDirty(false)
     writeRoute(view, nextSport, { condition_id: "" })
+  }
+
+  function openSportView(nextView, nextSport) {
+    const normalized = normalizeView(nextView)
+    setSport(nextSport)
+    sportRef.current = nextSport
+    setView(normalized)
+    setConditionId("")
+    setForm({
+      ...FALLBACK_SCHEDULE,
+      ...(data?.config?.schedules?.[nextSport] || data?.sports?.find((item) => item.id === nextSport)?.schedule || {}),
+    })
+    dirtyRef.current = false
+    setFormDirty(false)
+    writeRoute(normalized, nextSport, { condition_id: "" })
+    window.requestAnimationFrame(() => document.getElementById("main-content")?.focus({ preventScroll: true }))
   }
 
   function setField(field, value) {
     setForm((current) => ({ ...current, [field]: value }))
+    dirtyRef.current = true
     setFormDirty(true)
   }
 
@@ -165,11 +201,18 @@ export function App() {
     setError("")
     setNotice("")
     try {
-      const payload = { ...form, interval_value: intervalValue }
+      const payload = {
+        sport,
+        ...form,
+        interval_value: intervalValue,
+        push_branch: data?.config?.push_branch || data?.project?.push_branch || "main",
+      }
       const response = await request("/api/config", { method: "POST", body: JSON.stringify(payload) })
-      setForm({ ...FALLBACK_CONFIG, ...(response.config || payload) })
+      const saved = response.config?.schedules?.[sport] || payload
+      setForm({ ...FALLBACK_SCHEDULE, ...saved })
+      dirtyRef.current = false
       setFormDirty(false)
-      setNotice(payload.enabled ? "Refresh schedule saved." : "Automatic refreshes paused.")
+      setNotice(payload.enabled ? `${selected?.label || "Dataset"} schedule saved.` : `${selected?.label || "Dataset"} automatic refreshes paused.`)
       await loadStatus({ silent: true })
     } catch (cause) {
       setError(cause.message || "Could not save the refresh schedule.")
@@ -188,12 +231,12 @@ export function App() {
 
   function renderPage() {
     if (view === "refresh") {
-      return <RefreshPage data={data} selected={selected} form={form} setField={setField} runtime={runtime} runNow={runNow} starting={starting} saveSchedule={saveSchedule} saving={saving} formDirty={formDirty} />
+      return <RefreshPage data={data} selected={selected} form={form} setField={setField} runtime={runtime} runNow={runNow} starting={starting} saveSchedule={saveSchedule} saving={saving} formDirty={formDirty} onSelectSport={changeSport} onViewLogs={(nextSport) => openSportView("runs", nextSport)} />
     }
     if (view === "wallets") return <WalletsPage key={`${sport}-${walletDimension}`} sport={sport} initialDimension={walletDimension} />
     if (view === "games") return <GamesPage key={`${sport}-${conditionId}`} sport={sport} initialConditionId={conditionId} />
     if (view === "odds") return <OddsPage key={sport} sport={sport} />
-    if (view === "runs") return <RunsPage data={data} onRefresh={() => loadStatus()} />
+    if (view === "runs") return <RunsPage data={data} sport={sport} onRefresh={() => loadStatus()} />
     return <OverviewPage key={sport} data={data} selected={selected} onNavigate={navigate} />
   }
 

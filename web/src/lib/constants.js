@@ -7,13 +7,23 @@ import {
   Trophy,
 } from "lucide-react"
 
-export const FALLBACK_CONFIG = {
-  sport: "wnba_2026",
+export const DEFAULT_SPORT = "wnba_2026"
+
+export const FALLBACK_SCHEDULE = {
   interval_value: 6,
   interval_unit: "hours",
   enabled: false,
   auto_push: true,
   full_validation: false,
+}
+
+export const FALLBACK_CONFIG = {
+  push_branch: "main",
+  schedules: {
+    wnba_2026: { ...FALLBACK_SCHEDULE },
+    wnba_2025: { ...FALLBACK_SCHEDULE },
+    nfl_2025: { ...FALLBACK_SCHEDULE },
+  },
 }
 
 export const FALLBACK_SPORTS = [

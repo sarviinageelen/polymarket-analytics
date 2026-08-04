@@ -185,32 +185,26 @@ def public_download_url(sport: str, branch: str | None = None) -> str | None:
     return f"https://github.com/{repo}/raw/refs/heads/{ref}/{path}"
 
 
-def interval_seconds(config: dict[str, Any]) -> int:
-    value = int(config.get("interval_value", 6))
-    return value * (60 if config.get("interval_unit") == "minutes" else 3600)
+SCHEDULE_KEYS = ("interval_value", "interval_unit", "enabled", "auto_push", "full_validation")
 
 
-def default_config() -> dict[str, Any]:
+def default_schedule() -> dict[str, Any]:
     return {
-        "sport": "wnba_2026",
         "interval_value": 6,
         "interval_unit": "hours",
         "enabled": False,
         "auto_push": True,
         "full_validation": False,
-        "push_branch": current_branch(),
     }
 
 
-def normalize_config(payload: dict[str, Any], base: dict[str, Any] | None = None) -> dict[str, Any]:
-    current = default_config()
+def normalize_schedule(
+    payload: dict[str, Any],
+    base: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    current = default_schedule()
     if base:
-        current.update(base)
-    if "sport" in payload:
-        sport = str(payload["sport"])
-        if sport not in SPORTS:
-            raise ValueError(f"unsupported sport: {sport}")
-        current["sport"] = sport
+        current.update({key: base[key] for key in SCHEDULE_KEYS if key in base})
     if "interval_value" in payload:
         try:
             value = int(payload["interval_value"])
@@ -227,11 +221,84 @@ def normalize_config(payload: dict[str, Any], base: dict[str, Any] | None = None
     for key in ("enabled", "auto_push", "full_validation"):
         if key in payload:
             current[key] = bool(payload[key])
-    if "push_branch" in payload:
-        branch = str(payload["push_branch"]).strip()
-        if not ALLOWED_BRANCH.fullmatch(branch) or ".." in branch or "//" in branch:
-            raise ValueError("push_branch is not a valid Git branch name")
-        current["push_branch"] = branch
+    return current
+
+
+def default_config() -> dict[str, Any]:
+    return {
+        "schedules": {sport: default_schedule() for sport in SPORTS},
+        "push_branch": current_branch(),
+    }
+
+
+def schedule_config(config: dict[str, Any], sport: str) -> dict[str, Any]:
+    if sport not in SPORTS:
+        raise ValueError(f"unsupported sport: {sport}")
+    schedules = config.get("schedules") if isinstance(config, dict) else None
+    saved = schedules.get(sport) if isinstance(schedules, dict) else None
+    return normalize_schedule(saved if isinstance(saved, dict) else {})
+
+
+def interval_seconds(config: dict[str, Any], sport: str = "wnba_2026") -> int:
+    schedule = schedule_config(config, sport) if "schedules" in config else config
+    value = int(schedule.get("interval_value", 6))
+    return value * (60 if schedule.get("interval_unit") == "minutes" else 3600)
+
+
+def next_due_sport(
+    config: dict[str, Any],
+    next_runs: dict[str, Any],
+    now: datetime | None = None,
+) -> str | None:
+    current_time = now or utc_now()
+    due_sports: list[tuple[datetime, str]] = []
+    for sport in SPORTS:
+        schedule = schedule_config(config, sport)
+        due = parse_iso(next_runs.get(sport))
+        if schedule["enabled"] and due and due <= current_time:
+            due_sports.append((due, sport))
+    return min(due_sports)[1] if due_sports else None
+
+
+def normalize_config(payload: dict[str, Any], base: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate scheduler settings and migrate the former single-schedule shape."""
+
+    current = default_config()
+
+    def apply_source(source: dict[str, Any]) -> None:
+        if "sport" in source and str(source["sport"]) not in SPORTS:
+            raise ValueError(f"unsupported sport: {source['sport']}")
+        schedules = source.get("schedules")
+        if isinstance(schedules, dict):
+            unknown = set(schedules) - set(SPORTS)
+            if unknown:
+                raise ValueError(f"unsupported sport: {sorted(unknown)[0]}")
+            for sport, schedule in schedules.items():
+                if not isinstance(schedule, dict):
+                    raise ValueError(f"schedule for {sport} must be an object")
+                current["schedules"][sport] = normalize_schedule(
+                    schedule,
+                    current["schedules"][sport],
+                )
+        elif any(key in source for key in SCHEDULE_KEYS):
+            # Backward-compatible migration from the former flat configuration.
+            sport = str(source.get("sport") or "wnba_2026")
+            if sport not in SPORTS:
+                raise ValueError(f"unsupported sport: {sport}")
+            current["schedules"][sport] = normalize_schedule(
+                source,
+                current["schedules"][sport],
+            )
+
+        if "push_branch" in source:
+            branch = str(source["push_branch"]).strip()
+            if not ALLOWED_BRANCH.fullmatch(branch) or ".." in branch or "//" in branch:
+                raise ValueError("push_branch is not a valid Git branch name")
+            current["push_branch"] = branch
+
+    if base:
+        apply_source(base)
+    apply_source(payload)
     return current
 
 
@@ -415,6 +482,11 @@ class ControlPanel:
         CONTROL_PANEL_DIR.mkdir(parents=True, exist_ok=True)
         RUN_LOG_DIR.mkdir(parents=True, exist_ok=True)
         saved_config = read_json(CONFIG_PATH, {})
+        legacy_sport = (
+            str(saved_config.get("sport"))
+            if isinstance(saved_config, dict) and saved_config.get("sport") in SPORTS
+            else "wnba_2026"
+        )
         self.config = normalize_config(saved_config if isinstance(saved_config, dict) else {})
         saved_state = read_json(STATE_PATH, {})
         self.runtime: dict[str, Any] = saved_state if isinstance(saved_state, dict) else {}
@@ -422,13 +494,30 @@ class ControlPanel:
         self.runtime.setdefault("current_step", None)
         self.runtime.setdefault("last_run", None)
         self.runtime.setdefault("history", [])
-        self.runtime.setdefault("next_run_at", None)
+        saved_next_runs = self.runtime.get("next_runs")
+        next_runs = saved_next_runs if isinstance(saved_next_runs, dict) else {}
+        legacy_next_run = self.runtime.get("next_run_at")
+        normalized_next_runs: dict[str, str | None] = {}
+        for sport in SPORTS:
+            schedule = schedule_config(self.config, sport)
+            candidate = next_runs.get(sport)
+            if candidate is None and sport == legacy_sport:
+                candidate = legacy_next_run
+            if schedule["enabled"]:
+                due = parse_iso(candidate)
+                normalized_next_runs[sport] = (
+                    due.isoformat()
+                    if due
+                    else (utc_now() + timedelta(seconds=interval_seconds(schedule))).isoformat()
+                )
+            else:
+                normalized_next_runs[sport] = None
+        self.runtime["next_runs"] = normalized_next_runs
+        self.runtime.pop("next_run_at", None)
         self.lock = threading.RLock()
         self.stop_event = threading.Event()
         self.cancel_requested: set[str] = set()
         self._log("control panel started")
-        if self.config["enabled"] and not parse_iso(self.runtime.get("next_run_at")):
-            self.runtime["next_run_at"] = (utc_now() + timedelta(seconds=interval_seconds(self.config))).isoformat()
         self._persist()
         self.scheduler = threading.Thread(target=self._scheduler_loop, name="scheduler", daemon=True)
         self.scheduler.start()
@@ -514,32 +603,51 @@ class ControlPanel:
 
     def update_config(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
-            old = dict(self.config)
+            old = json.loads(json.dumps(self.config))
             self.config = normalize_config(payload, self.config)
-            if self.config["enabled"]:
-                changed_schedule = any(
-                    self.config.get(key) != old.get(key)
-                    for key in ("sport", "interval_value", "interval_unit", "enabled")
-                )
-                if changed_schedule or not parse_iso(self.runtime.get("next_run_at")):
-                    self.runtime["next_run_at"] = (
-                        utc_now() + timedelta(seconds=interval_seconds(self.config))
-                    ).isoformat()
+            target_sports: set[str]
+            if isinstance(payload.get("schedules"), dict):
+                target_sports = set(payload["schedules"])
+            elif any(key in payload for key in SCHEDULE_KEYS) or "sport" in payload:
+                target = str(payload.get("sport") or "wnba_2026")
+                if target not in SPORTS:
+                    raise ValueError(f"unsupported sport: {target}")
+                target_sports = {target}
             else:
-                self.runtime["next_run_at"] = None
+                target_sports = set()
+
+            next_runs = self.runtime.setdefault("next_runs", {})
+            for sport in target_sports:
+                previous = schedule_config(old, sport)
+                schedule = schedule_config(self.config, sport)
+                if not schedule["enabled"]:
+                    next_runs[sport] = None
+                    continue
+                changed_schedule = any(
+                    schedule.get(key) != previous.get(key)
+                    for key in ("interval_value", "interval_unit", "enabled")
+                )
+                if changed_schedule or not parse_iso(next_runs.get(sport)):
+                    next_runs[sport] = (
+                        utc_now() + timedelta(seconds=interval_seconds(schedule))
+                    ).isoformat()
             self._log(f"configuration updated: {self.config}")
             self._persist()
-            return dict(self.config)
+            return json.loads(json.dumps(self.config))
 
     def _scheduler_loop(self) -> None:
         while not self.stop_event.wait(5):
             with self.lock:
-                enabled = bool(self.config.get("enabled"))
-                due = parse_iso(self.runtime.get("next_run_at"))
-                can_run = enabled and not self.runtime.get("running") and due and due <= utc_now()
-                sport = str(self.config.get("sport"))
-            if can_run:
-                self.start_job(sport=sport, trigger="scheduled")
+                sport = (
+                    None
+                    if self.runtime.get("running")
+                    else next_due_sport(self.config, self.runtime.get("next_runs", {}))
+                )
+            if sport:
+                try:
+                    self.start_job(sport=sport, trigger="scheduled")
+                except RuntimeError:
+                    continue
 
     def start_job(
         self,
@@ -549,14 +657,15 @@ class ControlPanel:
         full_validation: bool | None = None,
     ) -> dict[str, Any]:
         with self.lock:
-            selected = sport or str(self.config["sport"])
+            selected = sport or "wnba_2026"
             if selected not in SPORTS:
                 raise ValueError(f"unsupported sport: {selected}")
             if self.runtime.get("running"):
                 raise RuntimeError("a refresh is already running")
             run_id = utc_now().strftime("%Y%m%dT%H%M%SZ")
+            schedule = schedule_config(self.config, selected)
             validation_mode = (
-                bool(self.config.get("full_validation"))
+                bool(schedule.get("full_validation"))
                 if full_validation is None
                 else bool(full_validation)
             )
@@ -677,7 +786,7 @@ class ControlPanel:
                 )
 
             with self.lock:
-                auto_push = bool(self.config.get("auto_push"))
+                auto_push = bool(schedule_config(self.config, sport).get("auto_push"))
                 branch = str(self.config.get("push_branch") or current_branch())
             if auto_push:
                 if run_id in self.cancel_requested:
@@ -767,13 +876,16 @@ class ControlPanel:
             self.runtime["current_step"] = None
             self.runtime["last_run"] = last_run
             history = [last_run, *self.runtime.get("history", [])]
-            self.runtime["history"] = history[:10]
-            if self.config.get("enabled"):
-                self.runtime["next_run_at"] = (
-                    utc_now() + timedelta(seconds=interval_seconds(self.config))
-                ).isoformat()
-            else:
-                self.runtime["next_run_at"] = None
+            self.runtime["history"] = history[:40]
+            sport = str(last_run.get("sport") or "")
+            if sport in SPORTS:
+                schedule = schedule_config(self.config, sport)
+                next_runs = self.runtime.setdefault("next_runs", {})
+                next_runs[sport] = (
+                    (utc_now() + timedelta(seconds=interval_seconds(schedule))).isoformat()
+                    if schedule["enabled"]
+                    else None
+                )
             self._persist()
             self.cancel_requested.discard(str(last_run.get("id")))
             self._retain_run_logs()
@@ -907,8 +1019,19 @@ class ControlPanel:
 
     def status(self) -> dict[str, Any]:
         with self.lock:
-            config = dict(self.config)
+            config = json.loads(json.dumps(self.config))
             runtime = json.loads(json.dumps(self.runtime, default=str))
+        next_runs = runtime.get("next_runs") if isinstance(runtime.get("next_runs"), dict) else {}
+        future_runs = [due for due in (parse_iso(value) for value in next_runs.values()) if due]
+        runtime["next_run_at"] = min(future_runs).isoformat() if future_runs else None
+        sports = []
+        for sport in SPORTS:
+            item = dataset_status(sport, config)
+            item["schedule"] = {
+                **schedule_config(config, sport),
+                "next_run_at": next_runs.get(sport),
+            }
+            sports.append(item)
         return {
             "controller": {"online": True, "now_utc": iso_now()},
             "project": {
@@ -918,7 +1041,7 @@ class ControlPanel:
             },
             "config": config,
             "runtime": runtime,
-            "sports": [dataset_status(sport, config) for sport in SPORTS],
+            "sports": sports,
         }
 
     def close(self) -> None:
@@ -1047,7 +1170,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 return
         if parsed.path.startswith("/api/analytics/"):
             query = parse_qs(parsed.query)
-            sport = str(self._query_value(query, "sport", self.controller.config.get("sport")))
+            sport = str(self._query_value(query, "sport", "wnba_2026"))
             if parsed.path == "/api/analytics/catalog":
                 self._send_json(self.controller.analytics_catalog(sport))
                 return

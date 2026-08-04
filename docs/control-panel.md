@@ -53,22 +53,25 @@ markets are refreshed through the current capture time.
 
 ## Scheduling
 
-The scheduler accepts an integer interval in minutes or hours. Its configuration
-is saved locally under the ignored `data/control_panel/` directory. It is active
-while `control_panel_server.py` is running. If the process is stopped, no job is
-started; when it is started again, the saved schedule is resumed from the next
-interval. For a server that should run continuously, put the command under your
-normal service manager (systemd, launchd, Docker, or a process supervisor).
+Each sport/year has an independent schedule with its own enabled state,
+interval, validation depth, GitHub-publishing preference, and next-run time.
+The **Dataset schedules** table makes those settings, the latest outcome, data
+health, and log access visible together. Selecting **Configure** changes the
+editor below the table; no setting is changed until **Save schedule** is
+pressed.
 
-The dataset being viewed in the header is intentionally separate from the
-dataset selected under **Automation**. Browsing NFL data cannot silently change
-an existing WNBA schedule; schedule changes take effect only after **Save
-schedule** is pressed.
+Intervals are whole numbers in minutes or hours. Configuration is saved locally
+under the ignored `data/control_panel/` directory. The scheduler is active while
+`control_panel_server.py` is running and executes one due dataset at a time. If
+the process is stopped, no job starts; when it is started again, each enabled
+dataset resumes from its saved next-run time. For a server that should run
+continuously, put the command under your normal service manager (systemd,
+launchd, Docker, or a process supervisor).
 
 The panel exposes both manual and scheduled runs through the same API:
 
-- `GET /api/status` — controller, schedule, dataset counts, validation, and links;
-- `POST /api/config` — save the selected dataset and schedule;
+- `GET /api/status` — controller, per-dataset schedules, counts, validation, and links;
+- `POST /api/config` — update one dataset schedule without changing the others;
 - `POST /api/run` — start a manual refresh;
 - `GET /api/logs?tail=80` — read the recent controller log.
 
@@ -78,9 +81,10 @@ Analytics and run-detail endpoints are documented in the
 `POST /api/runs/{run_id}/retry`, and `POST /api/runs/{run_id}/cancel`.
 
 Run-specific logs are stored as redacted JSON Lines files under the ignored
-`data/control_panel/runs/` directory. The controller retains a bounded number
-of run log files. API keys, tokens, authorization headers, cookies, passwords,
-and private-key-like values are redacted before persistence.
+`data/control_panel/runs/` directory. The controller keeps up to forty recent
+run records and forty structured log files. API keys, tokens, authorization
+headers, cookies, passwords, and private-key-like values are redacted before
+persistence.
 
 ## Auto-push behavior
 
