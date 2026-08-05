@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-05T15:53:56.877638+00:00",
+  "generated_at_utc": "2026-08-05T16:54:49.332843+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-05T15:53:20.324492+00:00",
+      "generated_at_utc": "2026-08-05T16:54:10.184758+00:00",
       "market_count": 270,
-      "trade_count": 846429,
-      "ledger_count": 104641,
+      "trade_count": 846553,
+      "ledger_count": 104677,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -21,7 +21,7 @@
     "ledger_result_counts": {
       "flat": 239,
       "loss": 45983,
-      "unsettled": 688,
+      "unsettled": 724,
       "win": 57731
     },
     "event_cache_events": 270,
@@ -59,12 +59,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 934899,
-        "parquet_raw_trades": 934899,
-        "manifest_unique_trades": 846429,
-        "parquet_unique_trades": 846429,
-        "duckdb_trades": 846429,
-        "refresh_duplicate_rows": 88470
+        "manifest_raw_trades": 937136,
+        "parquet_raw_trades": 937136,
+        "manifest_unique_trades": 846553,
+        "parquet_unique_trades": 846553,
+        "duckdb_trades": 846553,
+        "refresh_duplicate_rows": 90583
       }
     },
     {
@@ -101,7 +101,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 104641
+        "ledger_rows": 104677
       }
     },
     {
@@ -132,7 +132,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-05T15:53:55.301183+00:00"
+        "capture_time_utc": "2026-08-05T16:54:47.720422+00:00"
       }
     },
     {
