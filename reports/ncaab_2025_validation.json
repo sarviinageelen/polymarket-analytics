@@ -1,15 +1,17 @@
 {
-  "generated_at_utc": "2026-08-04T19:16:33.715038+00:00",
+  "generated_at_utc": "2026-08-05T21:18:08.449041+00:00",
   "local": {
     "manifest": {
       "series_id": "10012",
       "season": "NCAAB 2025",
       "start_date": "2025-01-01",
       "end_date": "2025-12-31",
-      "generated_at_utc": "2026-08-04T17:44:14.083820+00:00",
+      "generated_at_utc": "2026-08-05T21:06:04.532057+00:00",
       "market_count": 255,
       "trade_count": 11294,
       "ledger_count": 7446,
+      "prematch_ledger_count": 7225,
+      "prematch_trade_count": 10396,
       "allow_untagged_binary": true
     },
     "market_status_resolution_counts": {
@@ -23,32 +25,8 @@
     "event_cache_events": 255,
     "event_cache_moneyline_markets": 255
   },
-  "external": {
-    "gamma_scope": {
-      "remote_events": 255,
-      "local_events": 255,
-      "remote_moneyline_markets": 255,
-      "local_moneyline_markets": 255,
-      "missing_local_conditions": 0,
-      "extra_local_conditions": 0
-    }
-  },
-  "onchain": {
-    "samples": [
-      {
-        "transaction_hash": "0x0a1ffc1f70196f6e2f354082252dcf98c94aa59f9ccf259cbe4726f31d82ee23",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      },
-      {
-        "transaction_hash": "0x87aa288d33170d071c61403eab1fb2b84129c09bf2291888ec4439a433d72b6c",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      }
-    ]
-  },
+  "external": {},
+  "onchain": {},
   "checks": [
     {
       "name": "NCAAB source coverage is limited",
@@ -167,7 +145,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-04T19:16:31.381340+00:00"
+        "capture_time_utc": "2026-08-05T21:18:08.318130+00:00"
       }
     },
     {
@@ -182,14 +160,72 @@
       }
     },
     {
+      "name": "kickoff metadata is complete",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets": 255,
+        "with_kickoff": 255,
+        "missing_or_invalid_kickoff": 0,
+        "missing_source": 0,
+        "minimum_kickoff_timestamp": 1739034000,
+        "maximum_kickoff_timestamp": 1739415600
+      }
+    },
+    {
+      "name": "pre-match ledger schema is complete",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "ledger_rows": 7225,
+        "missing_columns": []
+      }
+    },
+    {
+      "name": "pre-match trade census reconciles",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "trade_fact_rows_before_kickoff": 10396,
+        "ledger_summed_trade_rows": 10396,
+        "source_wallet_game_keys": 7225,
+        "prematch_ledger_rows": 7225,
+        "duplicate_ledger_keys": 0
+      }
+    },
+    {
+      "name": "pre-match cutoff has no temporal leakage",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "rows_at_or_after_kickoff": 0,
+        "trade_partition_mismatches": 0,
+        "direction_flag_mismatches": 0,
+        "primary_pick_mismatches": 0,
+        "nonqualifying_rows_with_pick": 0,
+        "cutoff_rule": "trade_timestamp < game_start_ts"
+      }
+    },
+    {
+      "name": "pre-match accounting and pick results reconcile",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 4.547473508864641e-13,
+        "max_realized_pnl_residual": 0.0,
+        "directional_pick_result_mismatches": 0,
+        "unresolved_rows_with_realized_pnl": 0
+      }
+    },
+    {
       "name": "candidate filters match saved CSVs",
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "5_game_csv": 5,
-        "5_game_query": 5,
-        "10_game_csv": 3,
-        "10_game_query": 3
+        "5_game_csv": 27,
+        "5_game_query": 27,
+        "10_game_csv": 5,
+        "10_game_query": 5
       }
     },
     {
@@ -219,8 +255,8 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 212,
-        "sample_profile_url": "https://polymarket.com/profile/0x9b979a065641e8cfde3022a30ed2d9415cf55e12",
+        "hyperlinks_to_profiles": 848,
+        "sample_profile_url": "https://polymarket.com/profile/0x3978a99e028eb590c98d8e9ddbe513298fa92f24",
         "table_counts": {
           "Read Me": 0,
           "Odds vs Results": 0,
@@ -258,76 +294,26 @@
       }
     },
     {
-      "name": "Gamma event and moneyline census",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "remote_events": 255,
-        "local_events": 255,
-        "remote_moneyline_markets": 255,
-        "local_moneyline_markets": 255,
-        "missing_local_conditions": 0,
-        "extra_local_conditions": 0
-      }
-    },
-    {
-      "name": "Gamma market metadata spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "event_id": "18281",
-        "condition_id": "0x72b0e43a9dec29988e14697117789e51b1ddb75032e3a1dbe66cfaa92e0418c8",
-        "local_market_closed": true,
-        "remote_market_closed": true,
-        "outcomes_match": true
-      }
-    },
-    {
-      "name": "CLOB status spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "condition_id": "0x72b0e43a9dec29988e14697117789e51b1ddb75032e3a1dbe66cfaa92e0418c8",
-        "closed": true,
-        "accepting_orders": false,
-        "local_market_closed": true
-      }
-    },
-    {
-      "name": "ESPN schedule spot check",
+      "name": "External Gamma/CLOB/ESPN checks",
       "status": "not_run",
       "severity": "low",
       "evidence": {
-        "error": "<HTTPError 403: 'Forbidden'>"
+        "reason": "--skip-network"
       }
     },
     {
       "name": "Polygon transaction receipt spot check",
-      "status": "pass",
-      "severity": "medium",
+      "status": "not_run",
+      "severity": "low",
       "evidence": {
-        "samples": [
-          {
-            "transaction_hash": "0x0a1ffc1f70196f6e2f354082252dcf98c94aa59f9ccf259cbe4726f31d82ee23",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          },
-          {
-            "transaction_hash": "0x87aa288d33170d071c61403eab1fb2b84129c09bf2291888ec4439a433d72b6c",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          }
-        ],
-        "usable_samples": 2
+        "reason": "--skip-network"
       }
     }
   ],
   "counts": {
-    "pass": 19,
+    "pass": 20,
     "warning": 1,
     "fail": 0,
-    "not_run": 1
+    "not_run": 2
   }
 }

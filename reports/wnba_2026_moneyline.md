@@ -1,6 +1,6 @@
 # WNBA 2026 Full-Game Moneyline Analysis
 
-Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T20:07:48.417605+00:00`.
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T20:50:01.021671+00:00`.
 The snapshot uses series `10105`, an inclusive event window of `2026-05-08` through `2026-09-24`, and the market filter `sportsMarketType == moneyline`.
 
 ## Snapshot
@@ -10,16 +10,18 @@ The snapshot uses series `10105`, an inclusive event window of `2026-05-08` thro
 | Moneyline markets | 270 |
 | Resolved markets | 228 |
 | Unresolved markets | 42 |
-| Unique trades | 846,795 |
+| Unique trades | 846,859 |
 | Wallets with trades | 18,586 |
-| Wallet × game ledgers | 104,768 |
+| Wallet × game ledgers | 104,774 |
+| Pre-match wallet × game ledgers | 40,947 |
+| Markets with a kickoff timestamp | 270 |
 
 ## Candidate views
 
-The candidate files require at least five or ten settled games, at least a 70% non-flat profitable-ledger rate, and at least 1,000 units of settled buy cost. They are descriptive filters, not a guarantee of future performance.
+The candidate files require at least five or ten qualifying positions established before kickoff and at least a 70% non-flat profitable-ledger rate. There is no minimum dollar-turnover filter. They are descriptive filters, not a guarantee of future performance.
 
-- 5+ game candidates: `353` saved in `results/bettor_candidates_5games_70pct.csv`.
-- 10+ game candidates: `216` saved in `results/bettor_candidates_10games_70pct.csv`.
+- 5+ game candidates: `400` saved in `results/bettor_candidates_5games_70pct.csv`.
+- 10+ game candidates: `136` saved in `results/bettor_candidates_10games_70pct.csv`.
 
 ## Reproducibility
 

@@ -1,15 +1,17 @@
 {
-  "generated_at_utc": "2026-08-04T18:31:58.469241+00:00",
+  "generated_at_utc": "2026-08-05T21:17:42.157983+00:00",
   "local": {
     "manifest": {
       "series_id": "3",
       "season": "MLB 2025",
       "start_date": "2025-03-01",
       "end_date": "2025-11-01",
-      "generated_at_utc": "2026-08-04T17:54:47.456727+00:00",
+      "generated_at_utc": "2026-08-05T20:56:27.924907+00:00",
       "market_count": 2365,
       "trade_count": 2707486,
       "ledger_count": 734069,
+      "prematch_ledger_count": 541635,
+      "prematch_trade_count": 1266797,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -24,32 +26,8 @@
     "event_cache_events": 2402,
     "event_cache_moneyline_markets": 2365
   },
-  "external": {
-    "gamma_scope": {
-      "remote_events": 2402,
-      "local_events": 2402,
-      "remote_moneyline_markets": 2365,
-      "local_moneyline_markets": 2365,
-      "missing_local_conditions": 0,
-      "extra_local_conditions": 0
-    }
-  },
-  "onchain": {
-    "samples": [
-      {
-        "transaction_hash": "0x739c5cf36e6577bd27b0d8b2df25029f13fba6281d2b809b3fbfd56d673e3a2f",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      },
-      {
-        "transaction_hash": "0xbd37c4d2d3c68e90c6c72fae4ca1c5371407e50fe32dfb297996a5ad09c04ade",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      }
-    ]
-  },
+  "external": {},
+  "onchain": {},
   "checks": [
     {
       "name": "event cache scope and moneyline filter",
@@ -93,7 +71,8 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "duplicate_trade_rows": 0
+        "duplicate_trade_rows": 0,
+        "method": "validator DuckDB DISTINCT"
       }
     },
     {
@@ -152,7 +131,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-04T18:31:26.014376+00:00"
+        "capture_time_utc": "2026-08-05T21:17:37.326641+00:00"
       }
     },
     {
@@ -160,10 +139,68 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 1.7462298274040222e-10,
+        "max_cash_flow_residual": 1.1641532182693481e-10,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "kickoff metadata is complete",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets": 2365,
+        "with_kickoff": 2365,
+        "missing_or_invalid_kickoff": 0,
+        "missing_source": 0,
+        "minimum_kickoff_timestamp": 1723223700,
+        "maximum_kickoff_timestamp": 1762041600
+      }
+    },
+    {
+      "name": "pre-match ledger schema is complete",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "ledger_rows": 541635,
+        "missing_columns": []
+      }
+    },
+    {
+      "name": "pre-match trade census reconciles",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "trade_fact_rows_before_kickoff": 1266797,
+        "ledger_summed_trade_rows": 1266797,
+        "source_wallet_game_keys": 541635,
+        "prematch_ledger_rows": 541635,
+        "duplicate_ledger_keys": 0
+      }
+    },
+    {
+      "name": "pre-match cutoff has no temporal leakage",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "rows_at_or_after_kickoff": 0,
+        "trade_partition_mismatches": 0,
+        "direction_flag_mismatches": 0,
+        "primary_pick_mismatches": 0,
+        "nonqualifying_rows_with_pick": 0,
+        "cutoff_rule": "trade_timestamp < game_start_ts"
+      }
+    },
+    {
+      "name": "pre-match accounting and pick results reconcile",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 1.1641532182693481e-10,
+        "max_realized_pnl_residual": 0.0,
+        "directional_pick_result_mismatches": 0,
+        "unresolved_rows_with_realized_pnl": 0
       }
     },
     {
@@ -171,10 +208,10 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "5_game_csv": 793,
-        "5_game_query": 793,
-        "10_game_csv": 498,
-        "10_game_query": 498
+        "5_game_csv": 1729,
+        "5_game_query": 1729,
+        "10_game_csv": 563,
+        "10_game_query": 563
       }
     },
     {
@@ -204,8 +241,8 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 160765,
-        "sample_profile_url": "https://polymarket.com/profile/0xa49becb692927d455924583b5e3e5788246f4c40",
+        "hyperlinks_to_profiles": 6925,
+        "sample_profile_url": "https://polymarket.com/profile/0x081cd40e9d1a90896612c189bf470b4fbae4f010",
         "table_counts": {
           "Read Me": 0,
           "Odds vs Results": 0,
@@ -226,93 +263,43 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "table_parts": 7,
-        "table_auto_filters": 7,
+        "table_parts": 0,
+        "table_auto_filters": 0,
         "worksheet_filter_counts": {
           "xl/worksheets/sheet1.xml": 0,
-          "xl/worksheets/sheet10.xml": 0,
+          "xl/worksheets/sheet10.xml": 1,
           "xl/worksheets/sheet2.xml": 0,
-          "xl/worksheets/sheet3.xml": 0,
+          "xl/worksheets/sheet3.xml": 1,
           "xl/worksheets/sheet4.xml": 1,
           "xl/worksheets/sheet5.xml": 1,
-          "xl/worksheets/sheet6.xml": 0,
-          "xl/worksheets/sheet7.xml": 0,
-          "xl/worksheets/sheet8.xml": 0,
-          "xl/worksheets/sheet9.xml": 0
+          "xl/worksheets/sheet6.xml": 1,
+          "xl/worksheets/sheet7.xml": 1,
+          "xl/worksheets/sheet8.xml": 1,
+          "xl/worksheets/sheet9.xml": 1
         }
       }
     },
     {
-      "name": "Gamma event and moneyline census",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "remote_events": 2402,
-        "local_events": 2402,
-        "remote_moneyline_markets": 2365,
-        "local_moneyline_markets": 2365,
-        "missing_local_conditions": 0,
-        "extra_local_conditions": 0
-      }
-    },
-    {
-      "name": "Gamma market metadata spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "event_id": "70349",
-        "condition_id": "0x1a061b125ff8a5225ffa29de06ed0aa5899d269ad5fd606cc0b16dcb43791840",
-        "local_market_closed": true,
-        "remote_market_closed": true,
-        "outcomes_match": true
-      }
-    },
-    {
-      "name": "CLOB status spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "condition_id": "0x1a061b125ff8a5225ffa29de06ed0aa5899d269ad5fd606cc0b16dcb43791840",
-        "closed": true,
-        "accepting_orders": false,
-        "local_market_closed": true
-      }
-    },
-    {
-      "name": "ESPN schedule spot check",
+      "name": "External Gamma/CLOB/ESPN checks",
       "status": "not_run",
       "severity": "low",
       "evidence": {
-        "error": "<HTTPError 403: 'Forbidden'>"
+        "reason": "--skip-network"
       }
     },
     {
       "name": "Polygon transaction receipt spot check",
-      "status": "pass",
-      "severity": "medium",
+      "status": "not_run",
+      "severity": "low",
       "evidence": {
-        "samples": [
-          {
-            "transaction_hash": "0x739c5cf36e6577bd27b0d8b2df25029f13fba6281d2b809b3fbfd56d673e3a2f",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          },
-          {
-            "transaction_hash": "0xbd37c4d2d3c68e90c6c72fae4ca1c5371407e50fe32dfb297996a5ad09c04ade",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          }
-        ],
-        "usable_samples": 2
+        "reason": "--skip-network"
       }
     }
   ],
   "counts": {
-    "pass": 19,
+    "pass": 20,
     "warning": 0,
     "fail": 0,
-    "not_run": 1
+    "not_run": 2
   }
 }

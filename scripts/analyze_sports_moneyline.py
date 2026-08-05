@@ -50,6 +50,9 @@ def integer(value: Any) -> int:
 def build_wallet_summaries(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
     for row in ledgers:
+        qualifying = bool(row.get("qualifying_position", True))
+        if not qualifying:
+            continue
         wallet = str(row["wallet"]).lower()
         summary = grouped.setdefault(
             wallet,
@@ -63,8 +66,10 @@ def build_wallet_summaries(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]
                 "wins": 0,
                 "losses": 0,
                 "flats": 0,
+                "ties": 0,
                 "unsettled": 0,
                 "trade_count": 0,
+                "post_kickoff_trade_count": 0,
                 "buy_cost": 0.0,
                 "settled_buy_cost": 0.0,
                 "sell_proceeds": 0.0,
@@ -78,11 +83,13 @@ def build_wallet_summaries(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]
         summary["pseudonym"] = summary["pseudonym"] or row.get("pseudonym") or ""
         summary["markets"] += 1
         summary["trade_count"] += integer(row.get("trade_count"))
+        summary["post_kickoff_trade_count"] += integer(row.get("post_kickoff_trade_count"))
         summary["buy_cost"] += number(row.get("buy_cost"))
         summary["sell_proceeds"] += number(row.get("sell_proceeds"))
         summary["cash_flow"] += number(row.get("cash_flow"))
         summary["mark_to_market_pnl"] += number(row.get("mark_to_market_pnl"))
-        settled = row.get("resolution_type") in {"resolved", "tie"}
+        resolution = row.get("resolution_type")
+        settled = resolution == "resolved"
         if settled:
             summary["settled_markets"] += 1
             summary["settled_buy_cost"] += number(row.get("buy_cost"))
@@ -94,6 +101,8 @@ def build_wallet_summaries(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]
             else:
                 summary["flats"] += 1
             summary["total_pnl"] += number(row.get("realized_pnl"))
+        elif resolution == "tie":
+            summary["ties"] += 1
         else:
             summary["open_markets"] += 1
             summary["unsettled"] += 1
@@ -116,7 +125,6 @@ def candidates(summaries: list[dict[str, Any]], minimum_games: int) -> list[dict
         if row["settled_markets"] >= minimum_games
         and row["wins"] + row["losses"] >= minimum_games
         and row["win_rate"] >= 0.70
-        and row["settled_buy_cost"] >= 1_000
     ]
 
 
@@ -149,10 +157,12 @@ def write_report(path: Path, manifest: dict[str, Any], summary: dict[str, Any]) 
         f"| Unique trades | {summary.get('trade_rows_fetched', 0) or 0:,} |",
         f"| Wallets with trades | {summary.get('bettors_with_trades', 0):,} |",
         f"| Wallet × game ledgers | {summary.get('wallet_market_ledgers', 0):,} |",
+        f"| Pre-match wallet × game ledgers | {summary.get('prematch_wallet_market_ledgers', 0):,} |",
+        f"| Markets with a kickoff timestamp | {summary.get('markets_with_kickoff', 0):,} |",
         "",
         "## Candidate views",
         "",
-        "The candidate files require at least five or ten settled games, at least a 70% non-flat profitable-ledger rate, and at least 1,000 units of settled buy cost. They are descriptive filters, not a guarantee of future performance.",
+        "The candidate files require at least five or ten qualifying positions established before kickoff and at least a 70% non-flat profitable-ledger rate. There is no minimum dollar-turnover filter. They are descriptive filters, not a guarantee of future performance.",
         "",
         f"- 5+ game candidates: `{summary.get('candidate_5_count', len(summary.get('top_5_game_candidates', []))):,}` saved in `results/bettor_candidates_5games_70pct.csv`.",
         f"- 10+ game candidates: `{summary.get('candidate_10_count', len(summary.get('top_10_game_candidates', []))):,}` saved in `results/bettor_candidates_10games_70pct.csv`.",
@@ -196,30 +206,101 @@ def main() -> int:
         def copy_path(path: Path) -> str:
             return str(path).replace("'", "''")
 
+        tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
+        if "wallet_game_prematch_ledger" not in tables:
+            raise RuntimeError(
+                "DuckDB is missing wallet_game_prematch_ledger; rebuild it with "
+                "scripts/build_nav_duckdb.py before running the analysis"
+            )
+        conn.execute(
+            """
+            CREATE OR REPLACE TEMP TABLE all_trade_wallet_summary AS
+            SELECT
+                wallet,
+                count(*) AS all_markets,
+                sum(coalesce(trade_count, 0)) AS all_trade_count,
+                sum(CASE WHEN resolution_type IN ('resolved', 'tie')
+                    THEN coalesce(buy_cost, 0) ELSE 0 END) AS all_settled_buy_cost,
+                sum(CASE WHEN resolution_type IN ('resolved', 'tie')
+                    THEN coalesce(realized_pnl, 0) ELSE 0 END) AS all_total_pnl,
+                sum(coalesce(mark_to_market_pnl, 0)) AS all_mark_to_market_pnl
+            FROM wallet_game_ledger
+            GROUP BY wallet
+            """
+        )
         conn.execute(
             """
             CREATE OR REPLACE TEMP TABLE wallet_summary AS
             SELECT
-                wallet,
-                coalesce(any_value(name), '') AS name,
-                coalesce(any_value(pseudonym), '') AS pseudonym,
-                count(*) AS markets,
-                count(*) FILTER (WHERE resolution_type IN ('resolved', 'tie')) AS settled_markets,
-                count(*) FILTER (WHERE resolution_type NOT IN ('resolved', 'tie') OR resolution_type IS NULL) AS open_markets,
-                count(*) FILTER (WHERE result = 'win') AS wins,
-                count(*) FILTER (WHERE result = 'loss') AS losses,
-                count(*) FILTER (WHERE result NOT IN ('win', 'loss') AND resolution_type IN ('resolved', 'tie')) AS flats,
-                count(*) FILTER (WHERE resolution_type NOT IN ('resolved', 'tie') OR resolution_type IS NULL) AS unsettled,
-                sum(coalesce(trade_count, 0)) AS trade_count,
-                sum(coalesce(buy_cost, 0)) AS buy_cost,
-                sum(CASE WHEN resolution_type IN ('resolved', 'tie') THEN coalesce(buy_cost, 0) ELSE 0 END) AS settled_buy_cost,
-                sum(coalesce(sell_proceeds, 0)) AS sell_proceeds,
-                sum(coalesce(cash_flow, 0)) AS cash_flow,
-                sum(CASE WHEN resolution_type IN ('resolved', 'tie') THEN coalesce(realized_pnl, 0) ELSE 0 END) AS total_pnl,
-                sum(coalesce(mark_to_market_pnl, 0)) AS mark_to_market_pnl,
-                sum(CASE WHEN resolution_type NOT IN ('resolved', 'tie') OR resolution_type IS NULL THEN coalesce(mark_to_market_value, 0) ELSE 0 END) AS open_exposure
-            FROM wallet_game_ledger
-            GROUP BY wallet
+                p.wallet,
+                coalesce(any_value(p.name), '') AS name,
+                coalesce(any_value(p.pseudonym), '') AS pseudonym,
+                count(*) FILTER (WHERE p.qualifying_position) AS markets,
+                count(*) FILTER (
+                    WHERE p.resolution_type = 'resolved' AND p.qualifying_position
+                ) AS settled_markets,
+                count(*) FILTER (
+                    WHERE p.resolution_type NOT IN ('resolved', 'tie')
+                      AND p.qualifying_position
+                ) AS open_markets,
+                count(*) FILTER (WHERE p.result = 'win') AS wins,
+                count(*) FILTER (WHERE p.result = 'loss') AS losses,
+                count(*) FILTER (
+                    WHERE p.resolution_type = 'resolved'
+                      AND p.qualifying_position
+                      AND p.result NOT IN ('win', 'loss')
+                ) AS flats,
+                count(*) FILTER (
+                    WHERE p.resolution_type = 'tie' AND p.qualifying_position
+                ) AS ties,
+                count(*) FILTER (
+                    WHERE p.resolution_type NOT IN ('resolved', 'tie')
+                      AND p.qualifying_position
+                ) AS unsettled,
+                count(*) FILTER (WHERE p.pick_result = 'win') AS correct_picks,
+                count(*) FILTER (WHERE p.pick_result = 'loss') AS incorrect_picks,
+                sum(CASE WHEN p.qualifying_position
+                    THEN coalesce(p.trade_count, 0) ELSE 0 END
+                ) AS trade_count,
+                sum(CASE WHEN p.qualifying_position
+                    THEN coalesce(p.post_kickoff_trade_count, 0) ELSE 0 END
+                ) AS post_kickoff_trade_count,
+                sum(CASE WHEN p.qualifying_position
+                    THEN coalesce(p.buy_cost, 0) ELSE 0 END
+                ) AS buy_cost,
+                sum(CASE
+                    WHEN p.resolution_type = 'resolved' AND p.qualifying_position
+                        THEN coalesce(p.buy_cost, 0)
+                    ELSE 0
+                END) AS settled_buy_cost,
+                sum(CASE WHEN p.qualifying_position
+                    THEN coalesce(p.sell_proceeds, 0) ELSE 0 END
+                ) AS sell_proceeds,
+                sum(CASE WHEN p.qualifying_position
+                    THEN coalesce(p.cash_flow, 0) ELSE 0 END
+                ) AS cash_flow,
+                sum(CASE
+                    WHEN p.resolution_type = 'resolved' AND p.qualifying_position
+                        THEN coalesce(p.realized_pnl, 0)
+                    ELSE 0
+                END) AS total_pnl,
+                sum(CASE WHEN p.qualifying_position
+                    THEN coalesce(p.mark_to_market_pnl, 0) ELSE 0 END
+                ) AS mark_to_market_pnl,
+                sum(CASE
+                    WHEN p.resolution_type NOT IN ('resolved', 'tie')
+                     AND p.qualifying_position
+                        THEN coalesce(p.mark_to_market_value, 0)
+                    ELSE 0
+                END) AS open_exposure,
+                any_value(a.all_markets) AS all_markets,
+                any_value(a.all_trade_count) AS all_trade_count,
+                any_value(a.all_settled_buy_cost) AS all_settled_buy_cost,
+                any_value(a.all_total_pnl) AS all_total_pnl,
+                any_value(a.all_mark_to_market_pnl) AS all_mark_to_market_pnl
+            FROM wallet_game_prematch_ledger p
+            JOIN all_trade_wallet_summary a USING (wallet)
+            GROUP BY p.wallet
             """
         )
         conn.execute(
@@ -228,14 +309,19 @@ def main() -> int:
             SELECT
                 *,
                 CASE WHEN wins + losses > 0 THEN wins * 1.0 / (wins + losses) ELSE 0.0 END AS win_rate,
+                CASE WHEN correct_picks + incorrect_picks > 0
+                    THEN correct_picks * 1.0 / (correct_picks + incorrect_picks)
+                    ELSE NULL END AS pick_accuracy,
                 CASE WHEN settled_buy_cost <> 0 THEN total_pnl / settled_buy_cost ELSE NULL END AS roi,
+                CASE WHEN all_settled_buy_cost <> 0
+                    THEN all_total_pnl / all_settled_buy_cost ELSE NULL END AS all_roi,
                 coalesce(nullif(name, ''), nullif(pseudonym, ''), wallet) AS display_name
             FROM wallet_summary
             """
         )
-        summary_columns = "wallet, name, pseudonym, markets, settled_markets, open_markets, wins, losses, flats, unsettled, trade_count, buy_cost, settled_buy_cost, sell_proceeds, cash_flow, total_pnl, mark_to_market_pnl, open_exposure, win_rate, roi, display_name"
+        summary_columns = "wallet, name, pseudonym, markets, settled_markets, open_markets, wins, losses, flats, ties, unsettled, correct_picks, incorrect_picks, trade_count, post_kickoff_trade_count, buy_cost, settled_buy_cost, sell_proceeds, cash_flow, total_pnl, mark_to_market_pnl, open_exposure, win_rate, pick_accuracy, roi, all_markets, all_trade_count, all_settled_buy_cost, all_total_pnl, all_mark_to_market_pnl, all_roi, display_name"
         conn.execute(
-            f"COPY (SELECT {summary_columns} FROM wallet_summary_scored ORDER BY total_pnl DESC, settled_buy_cost DESC) TO '{copy_path(result_dir / 'bettor_ranking_pnl.csv')}' (HEADER, DELIMITER ',')"
+            f"COPY (SELECT {summary_columns} FROM wallet_summary_scored ORDER BY total_pnl DESC, settled_markets DESC) TO '{copy_path(result_dir / 'bettor_ranking_pnl.csv')}' (HEADER, DELIMITER ',')"
         )
         conn.execute(
             f"COPY (SELECT * FROM wallet_game_ledger) TO '{copy_path(result_dir / 'market_pnl.csv')}' (HEADER, DELIMITER ',')"
@@ -243,14 +329,16 @@ def main() -> int:
         conn.execute(
             f"COPY (SELECT * FROM wallet_game_ledger WHERE resolution_type NOT IN ('resolved', 'tie') OR resolution_type IS NULL) TO '{copy_path(result_dir / 'open_exposure.csv')}' (HEADER, DELIMITER ',')"
         )
+        conn.execute(
+            f"COPY (SELECT * FROM wallet_game_prematch_ledger) TO '{copy_path(result_dir / 'prematch_market_pnl.csv')}' (HEADER, DELIMITER ',')"
+        )
         candidate_query = """
             SELECT {columns}
             FROM wallet_summary_scored
             WHERE settled_markets >= ?
               AND wins + losses >= ?
               AND win_rate >= 0.70
-              AND settled_buy_cost >= 1000
-            ORDER BY total_pnl DESC, settled_buy_cost DESC
+            ORDER BY total_pnl DESC, settled_markets DESC
         """
         for minimum, filename in ((5, "bettor_candidates_5games_70pct.csv"), (10, "bettor_candidates_10games_70pct.csv")):
             conn.execute(
@@ -266,14 +354,17 @@ def main() -> int:
                 (SELECT count(*) FILTER (WHERE resolution_type NOT IN ('resolved', 'tie') OR resolution_type IS NULL) FROM market_dim),
                 (SELECT count(*) FROM wallet_game_ledger),
                 (SELECT count(*) FILTER (WHERE resolution_type NOT IN ('resolved', 'tie') OR resolution_type IS NULL) FROM wallet_game_ledger),
-                (SELECT count(*) FROM wallet_summary_scored),
-                (SELECT count(*) FROM wallet_summary_scored WHERE settled_markets >= 5 AND wins + losses >= 5 AND win_rate >= 0.70 AND settled_buy_cost >= 1000),
-                (SELECT count(*) FROM wallet_summary_scored WHERE settled_markets >= 10 AND wins + losses >= 10 AND win_rate >= 0.70 AND settled_buy_cost >= 1000)
+                (SELECT count(DISTINCT wallet) FROM trade_fact),
+                (SELECT count(*) FROM wallet_game_prematch_ledger),
+                (SELECT count(DISTINCT wallet) FROM wallet_game_prematch_ledger),
+                (SELECT count(*) FROM wallet_summary_scored WHERE settled_markets >= 5 AND wins + losses >= 5 AND win_rate >= 0.70),
+                (SELECT count(*) FROM wallet_summary_scored WHERE settled_markets >= 10 AND wins + losses >= 10 AND win_rate >= 0.70),
+                (SELECT count(*) FROM market_dim WHERE game_start_ts > 0)
             """
         ).fetchone()
-        top_pnl = [dict(zip(summary_columns.split(", "), row)) for row in conn.execute(f"SELECT {summary_columns} FROM wallet_summary_scored ORDER BY total_pnl DESC, settled_buy_cost DESC LIMIT 25").fetchall()]
-        top_5 = [dict(zip(summary_columns.split(", "), row)) for row in conn.execute(f"SELECT {summary_columns} FROM wallet_summary_scored WHERE settled_markets >= 5 AND wins + losses >= 5 AND win_rate >= 0.70 AND settled_buy_cost >= 1000 ORDER BY total_pnl DESC, settled_buy_cost DESC LIMIT 25").fetchall()]
-        top_10 = [dict(zip(summary_columns.split(", "), row)) for row in conn.execute(f"SELECT {summary_columns} FROM wallet_summary_scored WHERE settled_markets >= 10 AND wins + losses >= 10 AND win_rate >= 0.70 AND settled_buy_cost >= 1000 ORDER BY total_pnl DESC, settled_buy_cost DESC LIMIT 25").fetchall()]
+        top_pnl = [dict(zip(summary_columns.split(", "), row)) for row in conn.execute(f"SELECT {summary_columns} FROM wallet_summary_scored ORDER BY total_pnl DESC, settled_markets DESC LIMIT 25").fetchall()]
+        top_5 = [dict(zip(summary_columns.split(", "), row)) for row in conn.execute(f"SELECT {summary_columns} FROM wallet_summary_scored WHERE settled_markets >= 5 AND wins + losses >= 5 AND win_rate >= 0.70 ORDER BY total_pnl DESC, settled_markets DESC LIMIT 25").fetchall()]
+        top_10 = [dict(zip(summary_columns.split(", "), row)) for row in conn.execute(f"SELECT {summary_columns} FROM wallet_summary_scored WHERE settled_markets >= 10 AND wins + losses >= 10 AND win_rate >= 0.70 ORDER BY total_pnl DESC, settled_markets DESC LIMIT 25").fetchall()]
     finally:
         conn.close()
 
@@ -290,13 +381,17 @@ def main() -> int:
         "bettors_with_trades": int(metrics[5]),
         "wallet_market_ledgers": int(metrics[3]),
         "unsettled_wallet_market_ledgers": int(metrics[4]),
-        "candidate_5_count": int(metrics[6]),
-        "candidate_10_count": int(metrics[7]),
-        "ranking_basis": "BUY/SELL replay; realized P&L only for resolved/tie markets",
-        "win_rate_definition": "profitable settled wallet × moneyline ledgers / non-flat settled ledgers",
+        "prematch_wallet_market_ledgers": int(metrics[6]),
+        "prematch_bettors": int(metrics[7]),
+        "markets_with_kickoff": int(metrics[10]),
+        "candidate_5_count": int(metrics[8]),
+        "candidate_10_count": int(metrics[9]),
+        "ranking_basis": "BUY/SELL positions frozen strictly before kickoff; post-kickoff trades are excluded from skill metrics",
+        "win_rate_definition": "profitable qualifying pre-match wallet × moneyline ledgers / non-flat qualifying resolved ledgers",
         "candidate_filters": {
-            "5_game_view": {"minimum_settled_games": 5, "minimum_win_rate": 0.70},
-            "10_game_view": {"minimum_settled_games": 10, "minimum_win_rate": 0.70},
+            "5_game_view": {"minimum_prematch_settled_games": 5, "minimum_win_rate": 0.70, "minimum_buy_cost": None},
+            "10_game_view": {"minimum_prematch_settled_games": 10, "minimum_win_rate": 0.70, "minimum_buy_cost": None},
+            "trade_cutoff": "trade_timestamp < game_start_ts",
         },
         "top_pnl": top_pnl,
         "top_5_game_candidates": top_5,

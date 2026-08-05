@@ -60,6 +60,17 @@ class AnalyticsTests(unittest.TestCase):
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE wallet_game_prematch_ledger (
+                wallet VARCHAR, condition_id VARCHAR, name VARCHAR, pseudonym VARCHAR,
+                trade_count INTEGER, first_trade_timestamp BIGINT, last_trade_timestamp BIGINT,
+                buy_cost DOUBLE, buy_shares DOUBLE, pnl DOUBLE, realized_pnl DOUBLE,
+                result VARCHAR, resolution_type VARCHAR, net_shares_a DOUBLE,
+                net_shares_b DOUBLE, qualifying_position BOOLEAN
+            )
+            """
+        )
         conn.executemany(
             "INSERT INTO market_dim VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
@@ -78,6 +89,15 @@ class AnalyticsTests(unittest.TestCase):
             ],
         )
         conn.executemany(
+            "INSERT INTO wallet_game_prematch_ledger VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                ("0x1", "g1", "Trader One", "", 1, 1, 1, 10, 10, 4, 4, "win", "resolved", 10, 0, True),
+                ("0x1", "g2", "Trader One", "", 1, 2, 2, 10, 10, -3, -3, "loss", "resolved", 0, 10, True),
+                ("0x2", "g1", "Trader Two", "", 1, 1, 1, 10, 10, 2, 2, "win", "resolved", 10, 0, True),
+                ("0x2", "g2", "Trader Two", "", 1, 2, 2, 10, 10, 2, 2, "win", "resolved", 0, 10, True),
+            ],
+        )
+        conn.executemany(
             "INSERT INTO trade_fact VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 ("0x1", "BUY", 10, 0.6, "g1", 0, 1, "2025-01-01 00:01:00", "g1-a1"),
@@ -93,6 +113,9 @@ class AnalyticsTests(unittest.TestCase):
             [
                 ("0x3", "BUY", 10, 0.4, "g1", 1, 1, "2025-01-01 00:03:00", "g1-b"),
                 ("0x3", "BUY", 10, 0.4, "g2", 0, 2, "2025-01-02 00:03:00", "g2-a"),
+                # A trade stamped exactly at kickoff must not replace the
+                # strictly pre-match price used by calibration analytics.
+                ("0x4", "BUY", 10, 0.01, "g1", 0, 1735689600, "2025-01-01 00:00:00", "g1-at-kickoff"),
             ],
         )
         conn.close()

@@ -1,6 +1,6 @@
 # NCAAF 2025 Full-Game Moneyline Analysis
 
-Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-04T17:51:00.643842+00:00`.
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T21:03:55.202195+00:00`.
 The snapshot uses series `10210`, an inclusive event window of `2025-08-01` through `2026-01-31`, and the market filter `sportsMarketType == moneyline`.
 
 ## Snapshot
@@ -13,13 +13,15 @@ The snapshot uses series `10210`, an inclusive event window of `2025-08-01` thro
 | Unique trades | 1,197,626 |
 | Wallets with trades | 46,358 |
 | Wallet × game ledgers | 202,698 |
+| Pre-match wallet × game ledgers | 129,448 |
+| Markets with a kickoff timestamp | 715 |
 
 ## Candidate views
 
-The candidate files require at least five or ten settled games, at least a 70% non-flat profitable-ledger rate, and at least 1,000 units of settled buy cost. They are descriptive filters, not a guarantee of future performance.
+The candidate files require at least five or ten qualifying positions established before kickoff and at least a 70% non-flat profitable-ledger rate. There is no minimum dollar-turnover filter. They are descriptive filters, not a guarantee of future performance.
 
-- 5+ game candidates: `648` saved in `results/bettor_candidates_5games_70pct.csv`.
-- 10+ game candidates: `364` saved in `results/bettor_candidates_10games_70pct.csv`.
+- 5+ game candidates: `1,091` saved in `results/bettor_candidates_5games_70pct.csv`.
+- 10+ game candidates: `511` saved in `results/bettor_candidates_10games_70pct.csv`.
 
 ## Reproducibility
 

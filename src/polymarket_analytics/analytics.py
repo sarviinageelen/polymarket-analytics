@@ -51,6 +51,17 @@ def _column_names(conn: duckdb.DuckDBPyConnection, table: str) -> set[str]:
     return {row[0] for row in conn.execute(f"DESCRIBE {table}").fetchall()}
 
 
+def _analytics_ledger_table(conn: duckdb.DuckDBPyConnection) -> str:
+    """Prefer the kickoff-frozen ledger while retaining old-snapshot support."""
+
+    tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
+    return (
+        "wallet_game_prematch_ledger"
+        if "wallet_game_prematch_ledger" in tables
+        else "wallet_game_ledger"
+    )
+
+
 def _column(columns: set[str], name: str, fallback: str) -> str:
     return f'"{name}"' if name in columns else fallback
 
@@ -109,8 +120,11 @@ def _market_cte(conn: duckdb.DuckDBPyConnection) -> tuple[str, set[str]]:
     )
 
 
-def _ledger_expressions(conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
-    columns = _column_names(conn, "wallet_game_ledger")
+def _ledger_expressions(
+    conn: duckdb.DuckDBPyConnection,
+    table: str | None = None,
+) -> dict[str, str]:
+    columns = _column_names(conn, table or _analytics_ledger_table(conn))
     pnl = "l.realized_pnl" if "realized_pnl" in columns else "l.pnl"
     result = "l.result" if "result" in columns else "'unresolved'"
     resolution = "l.resolution_type" if "resolution_type" in columns else "m.normalized_resolution"
@@ -157,16 +171,32 @@ def _current_streak(sequence: Any) -> int:
 def _pick_label(net_a: float | None, net_b: float | None, team_a: str | None, team_b: str | None) -> str | None:
     a = float(net_a or 0.0)
     b = float(net_b or 0.0)
-    if a > 1e-9 and b > 1e-9:
-        return "Hedged"
-    if a > 1e-9:
+    difference = a - b
+    if difference > 1e-7:
         return team_a or "Team A"
-    if b > 1e-9:
+    if difference < -1e-7:
         return team_b or "Team B"
+    if abs(a) > 1e-7 or abs(b) > 1e-7:
+        return "Hedged"
     return None
 
 
 def _position_map(conn: duckdb.DuckDBPyConnection, condition_id: str) -> dict[str, dict[str, Any]]:
+    ledger_table = _analytics_ledger_table(conn)
+    if ledger_table == "wallet_game_prematch_ledger":
+        result = conn.execute(
+            """
+            SELECT wallet, net_shares_a AS net_a, net_shares_b AS net_b,
+                   last_trade_timestamp
+            FROM wallet_game_prematch_ledger
+            WHERE condition_id = ?
+            """,
+            [condition_id],
+        )
+        return {
+            row[0]: {"net_a": row[1], "net_b": row[2], "last_trade_timestamp": row[3]}
+            for row in result.fetchall()
+        }
     result = conn.execute(
         """
         SELECT
@@ -278,7 +308,22 @@ def leaderboard(
     conn = _open(db_path)
     try:
         market_cte, _ = _market_cte(conn)
-        expressions = _ledger_expressions(conn)
+        ledger_table = _analytics_ledger_table(conn)
+        ledger_columns = _column_names(conn, ledger_table)
+        expressions = _ledger_expressions(conn, ledger_table)
+        if "buy_shares" in ledger_columns:
+            buy_shares = "l.buy_shares"
+            buy_join = ""
+        else:
+            buy_shares = "COALESCE(b.buy_shares, 0.0)"
+            buy_join = """
+                LEFT JOIN (
+                    SELECT wallet, condition_id,
+                           SUM(CASE WHEN UPPER(side) = 'BUY' THEN size ELSE 0 END) AS buy_shares
+                    FROM trade_fact
+                    GROUP BY wallet, condition_id
+                ) b USING (wallet, condition_id)
+            """
         scope_filters = ["m.normalized_resolution = 'resolved'", f"{expressions['result']} IN ('win', 'loss')"]
         params: list[Any] = []
         target_team_a = team or ""
@@ -300,7 +345,11 @@ def leaderboard(
 
         aggregate_having = f"HAVING COUNT(*) >= {min_picks}"
         if dimension == "game" and not include_no_pick:
-            aggregate_having += " AND wallet IN (SELECT wallet FROM trade_fact WHERE condition_id = ?)"
+            qualifying_target = "AND qualifying_position" if "qualifying_position" in ledger_columns else ""
+            aggregate_having += (
+                f" AND wallet IN (SELECT wallet FROM {ledger_table} "
+                f"WHERE condition_id = ? {qualifying_target})"
+            )
 
         scoped = f"""
             scoped_base AS (
@@ -318,19 +367,14 @@ def leaderboard(
                     {expressions['result']} AS result,
                     COALESCE({expressions['pnl']}, 0.0) AS total_pnl,
                     COALESCE({expressions['buy_cost']}, 0.0) AS buy_cost,
-                    COALESCE(b.buy_shares, 0.0) AS buy_shares,
+                    COALESCE({buy_shares}, 0.0) AS buy_shares,
                     ROW_NUMBER() OVER (
                         PARTITION BY l.wallet
                         ORDER BY CAST(m.event_date AS DATE) DESC, l.condition_id DESC
                     ) AS sample_rank
-                FROM wallet_game_ledger l
+                FROM {ledger_table} l
                 JOIN market_view m USING (condition_id)
-                LEFT JOIN (
-                    SELECT wallet, condition_id,
-                           SUM(CASE WHEN UPPER(side) = 'BUY' THEN size ELSE 0 END) AS buy_shares
-                    FROM trade_fact
-                    GROUP BY wallet, condition_id
-                ) b USING (wallet, condition_id)
+                {buy_join}
                 WHERE {' AND '.join(scope_filters)}
             ), scoped AS (
                 SELECT *
@@ -520,11 +564,12 @@ def leaderboard(
             "total": total,
             "pages": max(1, math.ceil(total / page_size)) if total else 0,
             "methodology": {
-                "accuracy": "Profitable resolved wallet × game ledgers divided by non-flat resolved ledgers; this is not directional pick accuracy.",
-                "confidence_score": "95% Wilson lower bound of the raw profitable-game rate.",
-                "roi": "Realized P&L divided by settled BUY cost; shown only where settled BUY cost is positive.",
-                "minimum_sample": "Only traders with at least the selected number of resolved, non-flat ledgers are included.",
+                "accuracy": "Profitable qualifying positions established strictly before kickoff divided by non-flat qualifying resolved pre-match ledgers; directional pick correctness is tracked separately.",
+                "confidence_score": "95% Wilson lower bound of the pre-match profitable-game rate.",
+                "roi": "Pre-match-frozen realized P&L divided by pre-match BUY cost; shown only where that cost is positive.",
+                "minimum_sample": "Only traders with at least the selected number of resolved, non-flat pre-match ledgers are included; there is no minimum dollar-turnover filter.",
                 "unresolved": "Unresolved, cancelled, voided, and tie markets are excluded from accuracy rankings.",
+                "cutoff": "Only trades with trade_timestamp < game_start_ts contribute to rankings. Trades at or after kickoff remain in the all-trades audit ledger but cannot affect pre-match skill.",
             },
         }
     finally:
@@ -540,8 +585,9 @@ def trader_detail(db_path: Path, wallet: str, *, limit: int = 50) -> dict[str, A
     conn = _open(db_path)
     try:
         market_cte, _ = _market_cte(conn)
-        expressions = _ledger_expressions(conn)
-        ledger_columns = _column_names(conn, "wallet_game_ledger")
+        ledger_table = _analytics_ledger_table(conn)
+        expressions = _ledger_expressions(conn, ledger_table)
+        ledger_columns = _column_names(conn, ledger_table)
         net_shares_a = "l.net_shares_a" if "net_shares_a" in ledger_columns else "0.0"
         net_shares_b = "l.net_shares_b" if "net_shares_b" in ledger_columns else "0.0"
         rows = _rows(
@@ -556,7 +602,7 @@ def trader_detail(db_path: Path, wallet: str, *, limit: int = 50) -> dict[str, A
                        {net_shares_a} AS net_shares_a, {net_shares_b} AS net_shares_b,
                        l.trade_count, l.first_trade_timestamp, l.last_trade_timestamp,
                        l.name, l.pseudonym
-                FROM wallet_game_ledger l
+                FROM {ledger_table} l
                 JOIN market_view m USING (condition_id)
                 WHERE l.wallet = ?
                 ORDER BY CAST(m.event_date AS DATE) DESC, l.condition_id DESC
@@ -604,7 +650,7 @@ def trader_detail(db_path: Path, wallet: str, *, limit: int = 50) -> dict[str, A
             "trend": trend,
             "by_team": _group_team_rows(rows),
             "by_market_type": _group_rows(rows, "market_type"),
-            "methodology": "Timeline uses wallet × game ledgers from the local DuckDB snapshot; unresolved rows remain visible but do not count toward accuracy.",
+            "methodology": "Timeline uses positions frozen strictly before kickoff from the local DuckDB snapshot. At/after-kickoff trades remain in the separate all-trades ledger and cannot affect these skill metrics; unresolved rows remain visible but do not count toward the profitable-ledger rate.",
         }
     finally:
         conn.close()
@@ -637,9 +683,10 @@ def _group_team_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for row in rows:
         net_a = float(row.get("net_shares_a") or 0.0)
         net_b = float(row.get("net_shares_b") or 0.0)
-        if net_a > 1e-9 and net_b <= 1e-9:
+        difference = net_a - net_b
+        if difference > 1e-7:
             team = row.get("team_a")
-        elif net_b > 1e-9 and net_a <= 1e-9:
+        elif difference < -1e-7:
             team = row.get("team_b")
         else:
             team = None
@@ -910,7 +957,7 @@ def odds_performance(
 ) -> dict[str, Any]:
     """Compare cached pre-match market prices with resolved game outcomes.
 
-    A pre-match price is the last observed trade price for each outcome at or
+    A pre-match price is the last observed trade price for each outcome strictly
     before the cached kickoff timestamp. This is intentionally described as a
     market-price proxy, not a sportsbook closing line. Home/away is mapped from
     the cached Gamma event team's explicit ``ordering`` field.
@@ -954,7 +1001,7 @@ def odds_performance(
                            ) AS row_number
                     FROM trade_fact t
                     JOIN odds_cutoffs c USING (condition_id)
-                    WHERE t.trade_timestamp <= c.game_start_ts
+                    WHERE t.trade_timestamp < c.game_start_ts
                       AND t.price BETWEEN 0 AND 1
                 ) latest
                 WHERE row_number = 1
@@ -1143,7 +1190,7 @@ def odds_performance(
             "bands": bands,
             "games": [game for game in games if game["condition_id"] in selected_ids],
             "methodology": {
-                "pre_match_price": "Latest recorded trade price for each outcome at or before the cached kickoff timestamp, read from the local DuckDB trade_fact table.",
+                "pre_match_price": "Latest recorded trade price for each outcome strictly before the cached kickoff timestamp, read from the local DuckDB trade_fact table.",
                 "favorite": "The outcome with the higher pre-match market-price proxy. Equal or missing prices are excluded from favorite-rate calculations.",
                 "home_away": "Home/away is mapped from the cached Gamma event team's explicit ordering field. Unknown venue rows are not assigned to either side.",
                 "calibration": "Calibration delta is actual win rate minus average implied price, shown descriptively; it is not a guaranteed trading edge or sportsbook line comparison.",

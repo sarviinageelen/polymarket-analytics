@@ -6,7 +6,8 @@
 |---|---|---|
 | `market_dim` | One moneyline market/game | Teams, dates, outcomes, final prices |
 | `trade_fact` | One canonical API trade fill | Full-fidelity replay and microstructure checks |
-| `wallet_game_ledger` | One wallet × game | Performance filters and bettor rankings |
+| `wallet_game_ledger` | One wallet × game | Complete all-trades accounting and audit |
+| `wallet_game_prematch_ledger` | One wallet × game with activity before kickoff | Pre-match skill filters and rankings |
 | Wallet summary CSV | One wallet | Cross-game ranking and consistency |
 
 ## Core trade fields
@@ -71,10 +72,11 @@ also marked closed and the resulting resolution passes the database rules.
 This protects the ranking from premature settlement and canceled-market
 artifacts.
 
-## Filtering bettors
+## Pre-match cutoff and filtering users
 
-Filters should be applied to `wallet_game_ledger`, not individual trade rows.
-A safe starting definition is:
+Candidate filters are applied to `wallet_game_prematch_ledger`, not the
+all-trades ledger. The ledger contains only trades strictly before kickoff;
+trades exactly at kickoff or later do not contribute. A safe definition is:
 
 ```sql
 SELECT
@@ -84,8 +86,9 @@ SELECT
     SUM(CASE WHEN result = 'loss' THEN 1 ELSE 0 END) AS losses,
     SUM(pnl) AS total_pnl,
     SUM(buy_cost) AS total_buy_cost
-FROM wallet_game_ledger
+FROM wallet_game_prematch_ledger
 WHERE resolution_type = 'resolved'
+  AND qualifying_position
 GROUP BY wallet
 HAVING COUNT(*) >= 5
    AND SUM(CASE WHEN result IN ('win', 'loss') THEN 1 ELSE 0 END) >= 5
@@ -94,6 +97,7 @@ HAVING COUNT(*) >= 5
        >= 0.70;
 ```
 
-This calculates profitable-game rate, not pure pick accuracy. A later model
-should add directional pick accuracy, hedge rate, fees, markouts, and an
-out-of-sample period.
+This calculates profitable pre-match-game rate, not pure pick accuracy. The
+ledger also stores `primary_pick` and `pick_result` for directional accuracy,
+plus post-kickoff trade counts and all-trades P&L for comparison. There is no
+minimum BUY-cost filter.

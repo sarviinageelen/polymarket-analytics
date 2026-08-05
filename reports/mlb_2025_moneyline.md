@@ -1,6 +1,6 @@
 # MLB 2025 Full-Game Moneyline Analysis
 
-Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-04T17:54:47.456727+00:00`.
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T20:56:27.924907+00:00`.
 The snapshot uses series `3`, an inclusive event window of `2025-03-01` through `2025-11-01`, and the market filter `sportsMarketType == moneyline`.
 
 ## Snapshot
@@ -13,13 +13,15 @@ The snapshot uses series `3`, an inclusive event window of `2025-03-01` through 
 | Unique trades | 2,707,486 |
 | Wallets with trades | 63,945 |
 | Wallet × game ledgers | 734,069 |
+| Pre-match wallet × game ledgers | 541,635 |
+| Markets with a kickoff timestamp | 2,365 |
 
 ## Candidate views
 
-The candidate files require at least five or ten settled games, at least a 70% non-flat profitable-ledger rate, and at least 1,000 units of settled buy cost. They are descriptive filters, not a guarantee of future performance.
+The candidate files require at least five or ten qualifying positions established before kickoff and at least a 70% non-flat profitable-ledger rate. There is no minimum dollar-turnover filter. They are descriptive filters, not a guarantee of future performance.
 
-- 5+ game candidates: `793` saved in `results/bettor_candidates_5games_70pct.csv`.
-- 10+ game candidates: `498` saved in `results/bettor_candidates_10games_70pct.csv`.
+- 5+ game candidates: `1,729` saved in `results/bettor_candidates_5games_70pct.csv`.
+- 10+ game candidates: `563` saved in `results/bettor_candidates_10games_70pct.csv`.
 
 ## Reproducibility
 

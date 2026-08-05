@@ -103,7 +103,7 @@ function WalletMobileList({ result, onSelect }) {
             </span>
             <span className="mt-3 grid grid-cols-3 gap-2 pl-12 text-xs">
               <span><span className="block text-muted-foreground">Confidence</span><span className="mt-0.5 block font-medium tabular-nums">{formatPercent(row.confidence_score_pct)}</span></span>
-              <span><span className="block text-muted-foreground">Profitable</span><span className="mt-0.5 block font-medium tabular-nums">{formatPercent(row.raw_accuracy_pct)}</span></span>
+              <span><span className="block text-muted-foreground">Pre-match profit</span><span className="mt-0.5 block font-medium tabular-nums">{formatPercent(row.raw_accuracy_pct)}</span></span>
               <span><span className="block text-muted-foreground">ROI</span><span className={cn("mt-0.5 block font-medium tabular-nums", Number(row.roi_pct) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>{formatPercent(row.roi_pct)}</span></span>
             </span>
             {row.current_pick && <span className="mt-3 ml-12 inline-flex rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">{row.current_pick}</span>}
@@ -151,14 +151,14 @@ function TraderSheet({ sport, wallet, open, onOpenChange }) {
           {!loading && !error && trader && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Resolved ledgers</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatNumber(trader.resolved_picks)}</p></div>
-                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Profitable-ledger rate</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatPercent(trader.raw_accuracy_pct)}</p></div>
-                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Realized P&amp;L</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatMoney(trader.total_pnl)}</p></div>
-                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">ROI</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatPercent(trader.roi_pct)}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Resolved pre-match ledgers</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatNumber(trader.resolved_picks)}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Pre-match profitable rate</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatPercent(trader.raw_accuracy_pct)}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Pre-match P&amp;L</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatMoney(trader.total_pnl)}</p></div>
+                <div className="rounded-xl border p-3"><p className="text-xs text-muted-foreground">Pre-match ROI</p><p className="mt-1 text-xl font-semibold tabular-nums">{formatPercent(trader.roi_pct)}</p></div>
               </div>
 
               <div>
-                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-medium">Recent resolved ledgers</h3><Button asChild variant="outline" className="h-8"><a href={`https://polymarket.com/profile/${wallet}`} target="_blank" rel="noreferrer">Profile <ExternalLink /></a></Button></div>
+                <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-medium">Recent pre-match ledgers</h3><Button asChild variant="outline" className="h-8"><a href={`https://polymarket.com/profile/${wallet}`} target="_blank" rel="noreferrer">Profile <ExternalLink /></a></Button></div>
                 <div className="divide-y rounded-xl border">
                   {(trader.recent_picks || []).slice(0, 10).map((row) => (
                     <div key={row.condition_id} className="grid grid-cols-[1fr_auto] gap-3 p-3 text-sm">
@@ -246,7 +246,7 @@ export function WalletsPage({ sport, initialDimension = "team" }) {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Wallet rankings" description="Compare resolved wallet histories while accounting for sample size." actions={<Button asChild variant="outline" className="h-9"><a href={apiUrl(exportPath)}>Export CSV <Download /></a></Button>} />
+      <PageHeader title="Wallet rankings" description="Compare positions established before kickoff while accounting for sample size." actions={<Button asChild variant="outline" className="h-9"><a href={apiUrl(exportPath)}>Export CSV <Download /></a></Button>} />
 
       <Card>
         <CardHeader className="border-b">
@@ -287,7 +287,7 @@ export function WalletsPage({ sport, initialDimension = "team" }) {
             </div>
             <CollapsibleContent className="pt-3">
               <div className="grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-[180px_1fr] sm:items-end">
-                <Field label="Minimum resolved ledgers" htmlFor="minimum-resolved-ledgers"><Input id="minimum-resolved-ledgers" className="h-10" type="number" min="1" max="10000" value={filters.min_picks} onChange={(event) => setFilters((current) => ({ ...current, min_picks: event.target.value, page: 1 }))} /></Field>
+                <Field label="Minimum resolved pre-match ledgers" htmlFor="minimum-resolved-ledgers"><Input id="minimum-resolved-ledgers" className="h-10" type="number" min="1" max="10000" value={filters.min_picks} onChange={(event) => setFilters((current) => ({ ...current, min_picks: event.target.value, page: 1 }))} /></Field>
                 {dimension === "game" && <div className="flex h-10 items-center gap-2"><Checkbox id="include-no-pick" checked={Boolean(filters.include_no_pick)} onCheckedChange={(checked) => setFilters((current) => ({ ...current, include_no_pick: Boolean(checked), page: 1 }))} /><Label htmlFor="include-no-pick" className="text-xs font-normal text-muted-foreground">Include wallets without a qualifying position on this game</Label></div>}
               </div>
             </CollapsibleContent>
@@ -314,9 +314,9 @@ export function WalletsPage({ sport, initialDimension = "team" }) {
                   <SortHead label="Record" column="wins" filters={filters} setFilters={setFilters} />
                   <SortHead label="Resolved" column="picks" filters={filters} setFilters={setFilters} />
                   <SortHead label="Confidence" column="confidence_score" filters={filters} setFilters={setFilters} />
-                  <SortHead label="Profitable rate" column="raw_accuracy" filters={filters} setFilters={setFilters} />
+                  <SortHead label="Pre-match profitable" column="raw_accuracy" filters={filters} setFilters={setFilters} />
                   <SortHead label="ROI" column="roi" filters={filters} setFilters={setFilters} />
-                  <TableHead>Current position</TableHead>
+                  <TableHead>Pre-match position</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {result.rows.map((row, index) => (

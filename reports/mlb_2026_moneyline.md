@@ -1,6 +1,6 @@
 # MLB 2026 Full-Game Moneyline Analysis
 
-Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T20:05:06.948678+00:00`.
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T20:58:49.230100+00:00`.
 The snapshot uses series `3`, an inclusive event window of `2026-03-01` through `2026-11-01`, and the market filter `sportsMarketType == moneyline`.
 
 ## Snapshot
@@ -10,16 +10,18 @@ The snapshot uses series `3`, an inclusive event window of `2026-03-01` through 
 | Moneyline markets | 2,067 |
 | Resolved markets | 1,965 |
 | Unresolved markets | 102 |
-| Unique trades | 9,071,644 |
-| Wallets with trades | 106,473 |
-| Wallet × game ledgers | 1,394,705 |
+| Unique trades | 9,074,930 |
+| Wallets with trades | 106,494 |
+| Wallet × game ledgers | 1,395,157 |
+| Pre-match wallet × game ledgers | 648,276 |
+| Markets with a kickoff timestamp | 2,067 |
 
 ## Candidate views
 
-The candidate files require at least five or ten settled games, at least a 70% non-flat profitable-ledger rate, and at least 1,000 units of settled buy cost. They are descriptive filters, not a guarantee of future performance.
+The candidate files require at least five or ten qualifying positions established before kickoff and at least a 70% non-flat profitable-ledger rate. There is no minimum dollar-turnover filter. They are descriptive filters, not a guarantee of future performance.
 
-- 5+ game candidates: `1,524` saved in `results/bettor_candidates_5games_70pct.csv`.
-- 10+ game candidates: `1,135` saved in `results/bettor_candidates_10games_70pct.csv`.
+- 5+ game candidates: `1,110` saved in `results/bettor_candidates_5games_70pct.csv`.
+- 10+ game candidates: `344` saved in `results/bettor_candidates_10games_70pct.csv`.
 
 ## Reproducibility
 

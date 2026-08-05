@@ -1,76 +1,32 @@
 # WNBA 2025 Full-Game Moneyline Analysis
 
-## Executive summary
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-05T20:50:46.073959+00:00`.
+The snapshot uses series `10105`, an inclusive event window of `2025-05-16` through `2025-10-17`, and the market filter `sportsMarketType == moneyline`.
 
-- The historical snapshot covers all 283 full-game moneyline markets listed by
-  Polymarket from May 16 through October 17, 2025.
-- The local layers reconcile at 122,454 canonical trades, 5,563 public wallet
-  identifiers, and 27,209 wallet-game ledgers.
-- All 283 markets are closed: 278 have a decisive binary resolution and five
-  contingent or voided games resolve as ties. Ties never enter the win-rate
-  denominator.
-- The 5+ filter contains 83 wallets and the 10+ filter contains 54 wallets.
-  Both require at least a 70% settled non-flat win rate and at least $1,000 in
-  settled BUY cost.
+## Snapshot
 
-## Scope
-
-This dataset uses Polymarket WNBA series `10105` and an inclusive event-date
-window of `2025-05-16` through `2025-10-17`. The saved Gamma cache contains 316
-events. The ETL keeps the 283 nested markets where `sportsMarketType` is
-`moneyline`; 33 other WNBA market types are deliberately excluded.
-
-| Layer | Count |
-|---|---:|
-| Event cache | 316 |
-| Full-game moneyline markets | 283 |
-| Decisively resolved markets | 278 |
-| Tie / void resolutions | 5 |
-| Canonical trades | 122,454 |
+| Metric | Value |
+| --- | ---: |
+| Moneyline markets | 283 |
+| Resolved markets | 283 |
+| Unresolved markets | 0 |
+| Unique trades | 122,454 |
 | Wallets with trades | 5,563 |
-| Wallet-game ledgers | 27,209 |
-| Unsettled ledgers | 0 |
-| 5+ game candidates | 83 |
-| 10+ game candidates | 54 |
+| Wallet × game ledgers | 27,209 |
+| Pre-match wallet × game ledgers | 18,854 |
+| Markets with a kickoff timestamp | 283 |
 
-## Interpretation
+## Candidate views
 
-The database replays BUY and SELL activity at the wallet × moneyline-market
-grain. A settled ledger is profitable when replayed realized P&L is positive
-and unprofitable when it is negative. Flat and tie rows remain visible for the
-audit trail but do not count as wins or losses.
+The candidate files require at least five or ten qualifying positions established before kickoff and at least a 70% non-flat profitable-ledger rate. There is no minimum dollar-turnover filter. They are descriptive filters, not a guarantee of future performance.
 
-The workbook's Primary Pick is inferred from the outcome with the largest
-cumulative BUY notional. `Both / hedged` means the wallet bought both outcomes;
-`Sell-only` means no BUY direction can be inferred. These labels describe
-trading exposure, not a person's intent or a predictive model.
+- 5+ game candidates: `122` saved in `results/bettor_candidates_5games_70pct.csv`.
+- 10+ game candidates: `48` saved in `results/bettor_candidates_10games_70pct.csv`.
 
-## Validation
+## Reproducibility
 
-All 20 local, workbook, external, and on-chain checks pass. The evidence
-reconciles the event cache, manifest, Parquet, DuckDB, per-market trade counts,
-wallet ledgers, candidate CSVs, workbook XML, Gamma scope, CLOB status, an ESPN
-schedule sample, and Polygon transaction receipts.
-
-The ESPN sample deliberately uses the latest decisive 1–0 market resolution.
-Polymarket listed contingent Finals games through October 17 that were never
-played and resolved 0.5–0.5; those correctly have no matching ESPN fixture and
-must not be treated as missing schedule data.
-
-See [the saved validation evidence](wnba_2025_validation.json). To reproduce it:
-
-    .venv-nav/bin/python scripts/validate_sports_snapshot.py \
-      --experiment-dir data/experiments/nav_wnba_2025_moneyline \
-      --events data/raw/wnba_2025_events.json \
-      --workbook reports/generated/wnba_2025_moneyline_picks.xlsx \
-      --output reports/wnba_2025_validation.json
-
-## Caveats
-
-- This is a point-in-time reconstruction from public Polymarket data.
-- Realized P&L is a gross replay estimate; explicit fees, funding, transfers,
-  gas, and activity outside the captured markets are not modeled.
-- Wallets are public analytical identifiers. Display names are not verified
-  real-world identities.
-- Raw JSON, Parquet, and DuckDB data remain local on the VPS. GitHub contains
-  the code, methodology, validation evidence, and generated workbook.
+- Source repository: https://github.com/Nav1212/PolyMarketAnalytics
+- Source revision: `75d70d8f1659380591c63cc28330fc3c87efde17`
+- Raw event cache: `/root/polymarket-analytics/data/raw/wnba_2025_events.json`
+- Experiment directory: `data/experiments/nav_wnba_2025_moneyline`
+- DuckDB, Parquet, CSV analysis, validation JSON, and Excel are produced as separate local artifacts.

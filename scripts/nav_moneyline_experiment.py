@@ -110,6 +110,21 @@ def load_moneyline_markets(
             condition_id = market.get("conditionId")
             if not condition_id:
                 continue
+            game_start_value = (
+                market.get("gameStartTime")
+                or event.get("startTime")
+                or event.get("eventDate")
+            )
+            game_start_source = (
+                "market.gameStartTime"
+                if market.get("gameStartTime")
+                else "event.startTime"
+                if event.get("startTime")
+                else "event.eventDate"
+                if event.get("eventDate")
+                else "missing"
+            )
+            game_start_ts = epoch(game_start_value)
             start_ts = epoch(market.get("createdAt") or market.get("startDate"))
             end_ts = epoch(
                 market.get("closedTime")
@@ -144,6 +159,11 @@ def load_moneyline_markets(
                     "title": market.get("question") or event.get("title", ""),
                     "market_type": "moneyline",
                     "season": season_label,
+                    # ``market_start_ts`` is when the prediction market was
+                    # listed. ``game_start_ts`` is the sporting-event kickoff
+                    # and is the only valid cutoff for pre-match analysis.
+                    "game_start_ts": game_start_ts,
+                    "game_start_source": game_start_source,
                     "market_start_ts": start_ts,
                     "market_end_ts": end_ts,
                     "outcomes": parse_jsonish(market.get("outcomes"), []),

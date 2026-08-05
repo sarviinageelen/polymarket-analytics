@@ -153,7 +153,8 @@ keeps that exception explicit.
 
 - **Raw:** the original JSON/GZIP API responses, preserved for reproducibility.
 - **Bronze:** normalized, columnar Parquet trade and market snapshots.
-- **Silver:** DuckDB tables for markets, trades, wallet/game ledgers, and metadata.
+- **Silver:** DuckDB tables for markets, trades, all-trades wallet/game ledgers,
+  kickoff-frozen pre-match ledgers, and metadata.
 - **Reports:** rankings, candidate filters, validation evidence, audit notes, and generated workbook.
 
 For very large seasons, the complete candidate CSVs and ledger sheets remain
@@ -169,9 +170,12 @@ settlement = net_shares_a × final_price_a + net_shares_b × final_price_b
 pnl = cash_flow + settlement
 ```
 
-The current `win_rate` is the share of non-flat wallet/game ledgers with positive
-P&L. It is not automatically directional pick accuracy because a wallet may
-trade, hedge, or sell both outcomes.
+Candidate `win_rate` is the share of non-flat, qualifying pre-match wallet/game
+ledgers with positive P&L. A qualifying position is frozen from trades where
+`trade_timestamp < game_start_ts`; trades at or after kickoff remain in the
+all-trades ledger but cannot affect pre-match skill. There is no minimum dollar
+turnover requirement. Directional pick correctness is calculated separately
+because profitable-ledger rate is not automatically pick accuracy.
 
 ## Documentation
 

@@ -182,8 +182,32 @@ def local_checks(
         market_count = conn.execute("SELECT count(*) FROM market_dim").fetchone()[0]
         trade_count = conn.execute("SELECT count(*) FROM trade_fact").fetchone()[0]
         ledger_count = conn.execute("SELECT count(*) FROM wallet_game_ledger").fetchone()[0]
+        tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
+        if "wallet_game_prematch_ledger" not in tables:
+            raise RuntimeError(
+                "DuckDB is missing wallet_game_prematch_ledger; rebuild the silver layer"
+            )
+        prematch_ledger_count = conn.execute(
+            "SELECT count(*) FROM wallet_game_prematch_ledger"
+        ).fetchone()[0]
         market_columns = {row[0] for row in conn.execute("DESCRIBE market_dim").fetchall()}
         ledger_columns = {row[0] for row in conn.execute("DESCRIBE wallet_game_ledger").fetchall()}
+        prematch_columns = {
+            row[0]
+            for row in conn.execute("DESCRIBE wallet_game_prematch_ledger").fetchall()
+        }
+        required_prematch_columns = {
+            "game_start_ts",
+            "trade_count",
+            "post_kickoff_trade_count",
+            "all_trade_count",
+            "first_trade_timestamp",
+            "last_trade_timestamp",
+            "qualifying_position",
+            "primary_pick",
+            "pick_result",
+            "realized_pnl",
+        }
         market_status_column = (
             "market_status"
             if "market_status" in market_columns
@@ -327,6 +351,88 @@ def local_checks(
             FROM wallet_game_ledger
             """
         ).fetchone()
+        kickoff_stats = conn.execute(
+            """
+            SELECT
+                count(*) FILTER (WHERE game_start_ts > 0),
+                count(*) FILTER (WHERE game_start_ts IS NULL OR game_start_ts <= 0),
+                count(*) FILTER (WHERE coalesce(game_start_source, 'missing') = 'missing'),
+                min(game_start_ts),
+                max(game_start_ts)
+            FROM market_dim
+            """
+        ).fetchone()
+        prematch_census = conn.execute(
+            """
+            SELECT
+                (SELECT count(*)
+                 FROM trade_fact t
+                 JOIN market_dim m USING (condition_id)
+                 WHERE m.game_start_ts > 0
+                   AND t.trade_timestamp < m.game_start_ts),
+                (SELECT coalesce(sum(trade_count), 0)
+                 FROM wallet_game_prematch_ledger),
+                (SELECT count(*)
+                 FROM (
+                    SELECT t.wallet, t.condition_id
+                    FROM trade_fact t
+                    JOIN market_dim m USING (condition_id)
+                    WHERE m.game_start_ts > 0
+                      AND t.trade_timestamp < m.game_start_ts
+                    GROUP BY t.wallet, t.condition_id
+                 )),
+                (SELECT count(*) - count(DISTINCT (wallet, condition_id))
+                 FROM wallet_game_prematch_ledger)
+            """
+        ).fetchone()
+        prematch_cutoff_errors = conn.execute(
+            """
+            SELECT
+                count(*) FILTER (
+                    WHERE first_trade_timestamp >= game_start_ts
+                       OR last_trade_timestamp >= game_start_ts
+                       OR seconds_before_kickoff <= 0
+                ),
+                count(*) FILTER (
+                    WHERE all_trade_count <> trade_count + post_kickoff_trade_count
+                ),
+                count(*) FILTER (
+                    WHERE qualifying_position <>
+                        (abs(net_shares_a - net_shares_b) > 1e-7)
+                ),
+                count(*) FILTER (
+                    WHERE qualifying_position
+                      AND primary_pick <>
+                        CASE WHEN net_shares_a > net_shares_b THEN team_a ELSE team_b END
+                ),
+                count(*) FILTER (
+                    WHERE NOT qualifying_position AND primary_pick IS NOT NULL
+                )
+            FROM wallet_game_prematch_ledger
+            """
+        ).fetchone()
+        prematch_accounting = conn.execute(
+            """
+            SELECT
+                max(abs(cash_flow - (sell_proceeds - buy_cost))),
+                max(CASE WHEN resolution_type IN ('resolved', 'tie')
+                    THEN abs(realized_pnl - (
+                        cash_flow + net_shares_a * final_price_a
+                        + net_shares_b * final_price_b
+                    )) ELSE 0 END),
+                count(*) FILTER (
+                    WHERE resolution_type = 'resolved'
+                      AND qualifying_position
+                      AND pick_result <>
+                        CASE WHEN primary_pick = winner THEN 'win' ELSE 'loss' END
+                ),
+                count(*) FILTER (
+                    WHERE resolution_type NOT IN ('resolved', 'tie')
+                      AND realized_pnl IS NOT NULL
+                )
+            FROM wallet_game_prematch_ledger
+            """
+        ).fetchone()
         candidate_counts = {}
         ranking_path = experiment_dir / "results" / "bettor_ranking_pnl.csv"
         for minimum, filename in ((5, "bettor_candidates_5games_70pct.csv"), (10, "bettor_candidates_10games_70pct.csv")):
@@ -343,12 +449,10 @@ def local_checks(
                         wins = int(float(row.get("wins") or 0))
                         losses = int(float(row.get("losses") or 0))
                         win_rate = float(row.get("win_rate") or 0)
-                        settled_buy_cost = float(row.get("settled_buy_cost") or 0)
                         if (
                             settled_markets >= minimum
                             and wins + losses >= minimum
                             and win_rate >= 0.70
-                            and settled_buy_cost >= 1000
                         ):
                             query_count += 1
             else:
@@ -356,13 +460,14 @@ def local_checks(
                     """
                     SELECT count(*) FROM (
                         SELECT wallet
-                        FROM wallet_game_ledger
+                        FROM wallet_game_prematch_ledger
                         GROUP BY wallet
-                        HAVING count(*) FILTER (WHERE resolution_type IN ('resolved', 'tie')) >= ?
+                        HAVING count(*) FILTER (
+                                WHERE resolution_type = 'resolved' AND qualifying_position
+                            ) >= ?
                            AND count(*) FILTER (WHERE result IN ('win', 'loss')) >= ?
                            AND count(*) FILTER (WHERE result = 'win') * 1.0
                                / NULLIF(count(*) FILTER (WHERE result IN ('win', 'loss')), 0) >= 0.70
-                           AND sum(buy_cost) FILTER (WHERE resolution_type IN ('resolved', 'tie')) >= 1000
                     )
                     """,
                     [minimum, minimum],
@@ -458,6 +563,42 @@ def local_checks(
           {"max_cash_flow_residual": accounting[0], "max_realized_pnl_residual": accounting[1],
            "unresolved_with_settlement_or_realized_pnl": accounting[2],
            "settled_unsettled_result_rows": accounting[3]})
+    check(checks, "kickoff metadata is complete",
+          kickoff_stats[0] == market_count and kickoff_stats[1] == 0 and kickoff_stats[2] == 0,
+          {"markets": market_count, "with_kickoff": kickoff_stats[0],
+           "missing_or_invalid_kickoff": kickoff_stats[1], "missing_source": kickoff_stats[2],
+           "minimum_kickoff_timestamp": kickoff_stats[3], "maximum_kickoff_timestamp": kickoff_stats[4]},
+          severity="critical")
+    check(checks, "pre-match ledger schema is complete",
+          required_prematch_columns.issubset(prematch_columns),
+          {"ledger_rows": prematch_ledger_count,
+           "missing_columns": sorted(required_prematch_columns - prematch_columns)})
+    check(checks, "pre-match trade census reconciles",
+          prematch_census[0] == prematch_census[1]
+          and prematch_census[2] == prematch_ledger_count
+          and prematch_census[3] == 0,
+          {"trade_fact_rows_before_kickoff": prematch_census[0],
+           "ledger_summed_trade_rows": prematch_census[1],
+           "source_wallet_game_keys": prematch_census[2],
+           "prematch_ledger_rows": prematch_ledger_count,
+           "duplicate_ledger_keys": prematch_census[3]}, severity="critical")
+    check(checks, "pre-match cutoff has no temporal leakage",
+          all(value == 0 for value in prematch_cutoff_errors),
+          {"rows_at_or_after_kickoff": prematch_cutoff_errors[0],
+           "trade_partition_mismatches": prematch_cutoff_errors[1],
+           "direction_flag_mismatches": prematch_cutoff_errors[2],
+           "primary_pick_mismatches": prematch_cutoff_errors[3],
+           "nonqualifying_rows_with_pick": prematch_cutoff_errors[4],
+           "cutoff_rule": "trade_timestamp < game_start_ts"}, severity="critical")
+    check(checks, "pre-match accounting and pick results reconcile",
+          finite(prematch_accounting[0]) <= 1e-7
+          and finite(prematch_accounting[1]) <= 1e-7
+          and prematch_accounting[2] == 0
+          and prematch_accounting[3] == 0,
+          {"max_cash_flow_residual": prematch_accounting[0],
+           "max_realized_pnl_residual": prematch_accounting[1],
+           "directional_pick_result_mismatches": prematch_accounting[2],
+           "unresolved_rows_with_realized_pnl": prematch_accounting[3]})
     check(checks, "candidate filters match saved CSVs",
           candidate_counts["5_game_csv"] == candidate_counts["5_game_query"]
           and candidate_counts["10_game_csv"] == candidate_counts["10_game_query"],
@@ -585,6 +726,8 @@ def local_checks(
             "market_count": market_count,
             "trade_count": trade_count,
             "ledger_count": ledger_count,
+            "prematch_ledger_count": prematch_ledger_count,
+            "prematch_trade_count": int(prematch_census[1]),
             "allow_untagged_binary": allow_untagged_binary,
         },
         "market_status_resolution_counts": statuses,

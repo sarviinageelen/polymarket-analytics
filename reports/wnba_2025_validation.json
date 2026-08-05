@@ -1,15 +1,18 @@
 {
-  "generated_at_utc": "2026-08-04T05:19:00.434358+00:00",
+  "generated_at_utc": "2026-08-05T21:17:13.347868+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2025",
       "start_date": "2025-05-16",
       "end_date": "2025-10-17",
-      "generated_at_utc": "2026-08-04T05:17:10.025563+00:00",
+      "generated_at_utc": "2026-08-05T20:50:46.073959+00:00",
       "market_count": 283,
       "trade_count": 122454,
-      "ledger_count": 27209
+      "ledger_count": 27209,
+      "prematch_ledger_count": 18854,
+      "prematch_trade_count": 57145,
+      "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
       "closed:resolved": 278,
@@ -23,32 +26,8 @@
     "event_cache_events": 316,
     "event_cache_moneyline_markets": 283
   },
-  "external": {
-    "gamma_scope": {
-      "remote_events": 316,
-      "local_events": 316,
-      "remote_moneyline_markets": 283,
-      "local_moneyline_markets": 283,
-      "missing_local_conditions": 0,
-      "extra_local_conditions": 0
-    }
-  },
-  "onchain": {
-    "samples": [
-      {
-        "transaction_hash": "0x09bc8301df4995fd60f8d4baf7ed41f3e53e9d961941fa64a33f54adc85de692",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      },
-      {
-        "transaction_hash": "0x5f6ca80f66f8bdacf85c9b518a51455c6eb12c2bb44f585cc40203082b2d58d1",
-        "endpoint": "https://polygon.drpc.org",
-        "receipt_found": true,
-        "status": "0x1"
-      }
-    ]
-  },
+  "external": {},
+  "onchain": {},
   "checks": [
     {
       "name": "event cache scope and moneyline filter",
@@ -79,8 +58,9 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_unique_trades": 122454,
+        "manifest_raw_trades": 122454,
         "parquet_raw_trades": 122454,
+        "manifest_unique_trades": 122454,
         "parquet_unique_trades": 122454,
         "duckdb_trades": 122454,
         "refresh_duplicate_rows": 0
@@ -91,7 +71,8 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "duplicate_trade_rows": 0
+        "duplicate_trade_rows": 0,
+        "method": "validator DuckDB DISTINCT"
       }
     },
     {
@@ -109,7 +90,8 @@
       "severity": "critical",
       "evidence": {
         "conflicting_identity_keys": 0,
-        "conflicting_duplicate_rows": 0
+        "conflicting_duplicate_rows": 0,
+        "method": "collector canonical identity census plus DuckDB canonical-row reconciliation"
       }
     },
     {
@@ -149,7 +131,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-04T05:18:56.895210+00:00"
+        "capture_time_utc": "2026-08-05T21:17:13.044730+00:00"
       }
     },
     {
@@ -157,10 +139,68 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 1.0999201549566351e-11,
+        "max_cash_flow_residual": 1.8189894035458565e-11,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "kickoff metadata is complete",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets": 283,
+        "with_kickoff": 283,
+        "missing_or_invalid_kickoff": 0,
+        "missing_source": 0,
+        "minimum_kickoff_timestamp": 1747438200,
+        "maximum_kickoff_timestamp": 1760745600
+      }
+    },
+    {
+      "name": "pre-match ledger schema is complete",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "ledger_rows": 18854,
+        "missing_columns": []
+      }
+    },
+    {
+      "name": "pre-match trade census reconciles",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "trade_fact_rows_before_kickoff": 57145,
+        "ledger_summed_trade_rows": 57145,
+        "source_wallet_game_keys": 18854,
+        "prematch_ledger_rows": 18854,
+        "duplicate_ledger_keys": 0
+      }
+    },
+    {
+      "name": "pre-match cutoff has no temporal leakage",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "rows_at_or_after_kickoff": 0,
+        "trade_partition_mismatches": 0,
+        "direction_flag_mismatches": 0,
+        "primary_pick_mismatches": 0,
+        "nonqualifying_rows_with_pick": 0,
+        "cutoff_rule": "trade_timestamp < game_start_ts"
+      }
+    },
+    {
+      "name": "pre-match accounting and pick results reconcile",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 1.587885378739884e-11,
+        "max_realized_pnl_residual": 0.0,
+        "directional_pick_result_mismatches": 0,
+        "unresolved_rows_with_realized_pnl": 0
       }
     },
     {
@@ -168,10 +208,10 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "5_game_csv": 83,
-        "5_game_query": 83,
-        "10_game_csv": 54,
-        "10_game_query": 54
+        "5_game_csv": 122,
+        "5_game_query": 122,
+        "10_game_csv": 48,
+        "10_game_query": 48
       }
     },
     {
@@ -201,24 +241,21 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 6803,
-        "sample_profile_url": "https://polymarket.com/profile/0x37bb2ba956e76f817c4faf7ab022a7fdfe5306e8",
+        "hyperlinks_to_profiles": 4582,
+        "sample_profile_url": "https://polymarket.com/profile/0x328e8e38464b6cdca274061c4fd771a170e7dc42",
         "table_counts": {
           "Read Me": 0,
-          "Odds vs Results": 2,
-          "Games": 1,
+          "Odds vs Results": 0,
+          "Games": 0,
           "Picks Matrix (10+)": 0,
           "Picks Matrix (5+)": 0,
-          "Picks Ledger (10+)": 1,
-          "Picks Ledger (5+)": 1,
+          "Picks Ledger (10+)": 0,
+          "Picks Ledger (5+)": 0,
           "Open Exposure": 0,
-          "Bettor Summary (10+)": 1,
-          "Bettor Summary (5+)": 1
+          "Bettor Summary (10+)": 0,
+          "Bettor Summary (5+)": 0
         },
-        "worksheet_filter_refs": {
-          "Picks Matrix (10+)": "A7:KC61",
-          "Picks Matrix (5+)": "A7:KC90"
-        }
+        "worksheet_filter_refs": {}
       }
     },
     {
@@ -243,84 +280,19 @@
       }
     },
     {
-      "name": "Gamma event and moneyline census",
-      "status": "pass",
-      "severity": "high",
+      "name": "External Gamma/CLOB/ESPN checks",
+      "status": "not_run",
+      "severity": "low",
       "evidence": {
-        "remote_events": 316,
-        "local_events": 316,
-        "remote_moneyline_markets": 283,
-        "local_moneyline_markets": 283,
-        "missing_local_conditions": 0,
-        "extra_local_conditions": 0
-      }
-    },
-    {
-      "name": "Gamma market metadata spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "event_id": "60379",
-        "condition_id": "0x84ad752bb09e23cc2b8fe8e421dc28a2e4b25113cbb4210f97864956a7e494b6",
-        "local_market_closed": true,
-        "remote_market_closed": true,
-        "outcomes_match": true
-      }
-    },
-    {
-      "name": "CLOB status spot check",
-      "status": "pass",
-      "severity": "high",
-      "evidence": {
-        "condition_id": "0x84ad752bb09e23cc2b8fe8e421dc28a2e4b25113cbb4210f97864956a7e494b6",
-        "closed": true,
-        "accepting_orders": false,
-        "local_market_closed": true
-      }
-    },
-    {
-      "name": "ESPN schedule spot check",
-      "status": "pass",
-      "severity": "medium",
-      "evidence": {
-        "event_id": "56869",
-        "condition_id": "0xc4e6e38774fd8f5ebeaaf3c2a53c715d7b0e7603e5edc3a57408a132f89eeb28",
-        "local_title": "Aces vs. Mercury",
-        "local_teams": [
-          "aces",
-          "mercury"
-        ],
-        "espn_teams": [
-          [
-            "phoenixmercury",
-            "lasvegasaces"
-          ]
-        ],
-        "espn_sport": "basketball/wnba",
-        "scoreboard_date": "20251010",
-        "sample_rule": "latest decisive 1-0 moneyline resolution"
+        "reason": "--skip-network"
       }
     },
     {
       "name": "Polygon transaction receipt spot check",
-      "status": "pass",
-      "severity": "medium",
+      "status": "not_run",
+      "severity": "low",
       "evidence": {
-        "samples": [
-          {
-            "transaction_hash": "0x09bc8301df4995fd60f8d4baf7ed41f3e53e9d961941fa64a33f54adc85de692",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          },
-          {
-            "transaction_hash": "0x5f6ca80f66f8bdacf85c9b518a51455c6eb12c2bb44f585cc40203082b2d58d1",
-            "endpoint": "https://polygon.drpc.org",
-            "receipt_found": true,
-            "status": "0x1"
-          }
-        ],
-        "usable_samples": 2
+        "reason": "--skip-network"
       }
     }
   ],
@@ -328,6 +300,6 @@
     "pass": 20,
     "warning": 0,
     "fail": 0,
-    "not_run": 0
+    "not_run": 2
   }
 }

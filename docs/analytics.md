@@ -28,14 +28,15 @@ not invent predictions.
 
 ## Grain and source
 
-All leaderboard rows start from `wallet_game_ledger`, which is one wallet × one
-moneyline market. Trade-level features such as average entry price and current
-position are aggregated from `trade_fact`. Market status and outcomes come from
-`market_dim`.
+All leaderboard rows start from `wallet_game_prematch_ledger`, which is one
+wallet × one moneyline market with its position frozen strictly before kickoff.
+The cutoff is `trade_timestamp < game_start_ts`. The original
+`wallet_game_ledger` remains the complete all-trades accounting record. Market
+status, kickoff, and outcomes come from `market_dim`.
 
 This is important: a wallet may trade, reduce, hedge, or reverse a position.
-The default accuracy metric therefore describes profitable resolved wallet ×
-game ledgers. It is not automatically directional pick accuracy.
+The default rate therefore describes profitable resolved pre-match wallet ×
+game ledgers. Directional pick correctness is calculated separately.
 
 ## Ranking metrics
 
@@ -49,7 +50,8 @@ denominator.
 ### Raw accuracy
 
 ```text
-raw accuracy = profitable resolved ledgers / non-flat resolved ledgers
+raw profitable rate = profitable qualifying resolved pre-match ledgers
+                      / non-flat qualifying resolved pre-match ledgers
 ```
 
 The table displays the denominator next to every percentage, for example
@@ -65,19 +67,20 @@ large wallet with a well-supported record.
 ### ROI and P&L
 
 ```text
-realized P&L = cash flow + settlement value
-ROI = realized P&L / settled BUY cost
+pre-match P&L = pre-match cash flow + frozen-position settlement value
+pre-match ROI = pre-match P&L / pre-match BUY cost
 ```
 
-ROI is shown only when settled BUY cost is positive. Open exposure is not
-treated as realized profit.
+ROI is shown only when pre-match BUY cost is positive. It is a displayed metric,
+not a candidate threshold: the 5+ and 10+ views have no minimum dollar-turnover
+requirement. All-trades P&L remains available separately for audit.
 
 ### Current pick
 
-For an open or upcoming market, the panel aggregates net shares from
-`trade_fact`. A wallet with positive exposure to both outcomes is labelled
-`Hedged`. A flat wallet has no current pick. This is a snapshot of net
-exposure, not a claim about intent or future performance.
+For an open or upcoming market, the panel reads the pre-kickoff net shares from
+`wallet_game_prematch_ledger`. Direction is based on the difference between
+outcome-A and outcome-B net shares; equal exposure is labelled `Hedged`. This is
+an inferred position, not a claim about intent or future performance.
 
 ## API endpoints
 

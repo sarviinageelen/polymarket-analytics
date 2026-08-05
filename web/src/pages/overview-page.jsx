@@ -147,7 +147,7 @@ export function OverviewPage({ data, selected, onNavigate }) {
         <MetricCard label="Resolved markets" value={formatNumber(counts.resolved_markets)} detail={`${formatNumber(counts.markets)} total markets`} icon={CheckCircle2} tone="positive" />
         <MetricCard label="Trade rows" value={formatNumber(counts.trade_rows)} detail="Deduplicated analytical trades" icon={Database} />
         <MetricCard label="Tracked wallets" value={formatNumber(counts.bettors)} detail="Wallets with recorded trades" icon={WalletCards} />
-        <MetricCard label="Qualified wallets" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ games · 70%+ profitable ledgers" icon={Trophy} tone="info" />
+        <MetricCard label="Qualified wallets" value={formatNumber(counts.candidates_5games_70pct)} detail="5+ pre-match games · 70%+ profitable ledgers" icon={Trophy} tone="info" />
       </BalancedCardGrid>
 
       {loading && <Card><CardContent><LoadingState /></CardContent></Card>}

@@ -1,15 +1,17 @@
 {
-  "generated_at_utc": "2026-08-05T20:07:29.802472+00:00",
+  "generated_at_utc": "2026-08-05T21:17:53.643942+00:00",
   "local": {
     "manifest": {
       "series_id": "3",
       "season": "MLB 2026",
       "start_date": "2026-03-01",
       "end_date": "2026-11-01",
-      "generated_at_utc": "2026-08-05T20:05:06.948678+00:00",
+      "generated_at_utc": "2026-08-05T20:58:49.230100+00:00",
       "market_count": 2067,
-      "trade_count": 9071644,
-      "ledger_count": 1394705,
+      "trade_count": 9074930,
+      "ledger_count": 1395157,
+      "prematch_ledger_count": 648276,
+      "prematch_trade_count": 2383577,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -22,7 +24,7 @@
     "ledger_result_counts": {
       "flat": 4577,
       "loss": 631746,
-      "unsettled": 12885,
+      "unsettled": 13337,
       "win": 745497
     },
     "event_cache_events": 3474,
@@ -60,12 +62,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 9271521,
-        "parquet_raw_trades": 9271521,
-        "manifest_unique_trades": 9071644,
-        "parquet_unique_trades": 9071644,
-        "duckdb_trades": 9071644,
-        "refresh_duplicate_rows": 199877
+        "manifest_raw_trades": 9389654,
+        "parquet_raw_trades": 9389654,
+        "manifest_unique_trades": 9074930,
+        "parquet_unique_trades": 9074930,
+        "duckdb_trades": 9074930,
+        "refresh_duplicate_rows": 314724
       }
     },
     {
@@ -102,7 +104,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 1394705
+        "ledger_rows": 1395157
       }
     },
     {
@@ -133,7 +135,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-05T20:07:13.529625+00:00"
+        "capture_time_utc": "2026-08-05T21:17:49.496072+00:00"
       }
     },
     {
@@ -141,10 +143,68 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 2.3283064365386963e-10,
+        "max_cash_flow_residual": 1.8917489796876907e-10,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "kickoff metadata is complete",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets": 2067,
+        "with_kickoff": 2067,
+        "missing_or_invalid_kickoff": 0,
+        "missing_source": 0,
+        "minimum_kickoff_timestamp": 1772561100,
+        "maximum_kickoff_timestamp": 1790096700
+      }
+    },
+    {
+      "name": "pre-match ledger schema is complete",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "ledger_rows": 648276,
+        "missing_columns": []
+      }
+    },
+    {
+      "name": "pre-match trade census reconciles",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "trade_fact_rows_before_kickoff": 2383577,
+        "ledger_summed_trade_rows": 2383577,
+        "source_wallet_game_keys": 648276,
+        "prematch_ledger_rows": 648276,
+        "duplicate_ledger_keys": 0
+      }
+    },
+    {
+      "name": "pre-match cutoff has no temporal leakage",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "rows_at_or_after_kickoff": 0,
+        "trade_partition_mismatches": 0,
+        "direction_flag_mismatches": 0,
+        "primary_pick_mismatches": 0,
+        "nonqualifying_rows_with_pick": 0,
+        "cutoff_rule": "trade_timestamp < game_start_ts"
+      }
+    },
+    {
+      "name": "pre-match accounting and pick results reconcile",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 8.731149137020111e-11,
+        "max_realized_pnl_residual": 0.0,
+        "directional_pick_result_mismatches": 0,
+        "unresolved_rows_with_realized_pnl": 0
       }
     },
     {
@@ -152,10 +212,10 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "5_game_csv": 1524,
-        "5_game_query": 1524,
-        "10_game_csv": 1135,
-        "10_game_query": 1135
+        "5_game_csv": 1110,
+        "5_game_query": 1110,
+        "10_game_csv": 344,
+        "10_game_query": 344
       }
     },
     {
@@ -185,8 +245,8 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 9097,
-        "sample_profile_url": "https://polymarket.com/profile/0xdb15fbbcc1a8d1cbe112f7a2d74f6f752f2314f1",
+        "hyperlinks_to_profiles": 4844,
+        "sample_profile_url": "https://polymarket.com/profile/0x5966db1fe50763c9e3c014d756369bad07e1f804",
         "table_counts": {
           "Read Me": 0,
           "Odds vs Results": 0,
@@ -241,7 +301,7 @@
     }
   ],
   "counts": {
-    "pass": 15,
+    "pass": 20,
     "warning": 0,
     "fail": 0,
     "not_run": 2

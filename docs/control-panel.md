@@ -56,7 +56,9 @@ runbook:
 1. Refresh the Gamma event snapshot for the selected season.
 2. Fetch new/open trade windows and persist them as Parquet bronze files.
 3. Rebuild the local DuckDB silver database.
-4. Recalculate wallet/game ledgers and the 5+ / 10+ game candidate CSVs.
+4. Recalculate the complete all-trades ledger, freeze a second ledger strictly
+   before each game's kickoff, and build the 5+ / 10+ pre-match candidate CSVs
+   without a minimum dollar-turnover threshold.
 5. Export the profile-hyperlinked Excel workbook.
 6. Run local validation, or full external checks when selected.
 7. Optionally upload the workbook to the stable GitHub Release and commit the

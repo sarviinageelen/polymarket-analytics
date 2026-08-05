@@ -84,6 +84,8 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
         event_active = market_field("event_active", "NULL::BOOLEAN")
         event_archived = market_field("event_archived", "NULL::BOOLEAN")
         event_period = market_field("event_period", "NULL::VARCHAR")
+        game_start_ts = market_field("game_start_ts", "0::BIGINT")
+        game_start_source = market_field("game_start_source", "NULL::VARCHAR")
         conn.execute(
             f"""
             CREATE OR REPLACE TABLE market_dim AS
@@ -96,6 +98,8 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
                     market_type,
                     season,
                     event_date,
+                    {game_start_ts} AS game_start_ts,
+                    {game_start_source} AS game_start_source,
                     market_start_ts,
                     market_end_ts,
                     slug,
@@ -288,6 +292,148 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
         )
         conn.execute(
             """
+            CREATE OR REPLACE TABLE wallet_game_prematch_ledger AS
+            WITH aggregated AS (
+                SELECT
+                    t.wallet,
+                    t.condition_id,
+                    any_value(t.name) AS name,
+                    any_value(t.pseudonym) AS pseudonym,
+                    count(*) AS all_trade_count,
+                    count(*) FILTER (
+                        WHERE t.trade_timestamp < m.game_start_ts
+                    ) AS trade_count,
+                    count(*) FILTER (
+                        WHERE t.trade_timestamp >= m.game_start_ts
+                    ) AS post_kickoff_trade_count,
+                    min(t.trade_timestamp) FILTER (
+                        WHERE t.trade_timestamp < m.game_start_ts
+                    ) AS first_trade_timestamp,
+                    max(t.trade_timestamp) FILTER (
+                        WHERE t.trade_timestamp < m.game_start_ts
+                    ) AS last_trade_timestamp,
+                    sum(CASE
+                        WHEN t.trade_timestamp < m.game_start_ts
+                         AND upper(t.side) = 'BUY'
+                            THEN t.size * t.price
+                        ELSE 0
+                    END) AS buy_cost,
+                    sum(CASE
+                        WHEN t.trade_timestamp < m.game_start_ts
+                         AND upper(t.side) = 'BUY'
+                            THEN t.size
+                        ELSE 0
+                    END) AS buy_shares,
+                    sum(CASE
+                        WHEN t.trade_timestamp < m.game_start_ts
+                         AND upper(t.side) = 'SELL'
+                            THEN t.size * t.price
+                        ELSE 0
+                    END) AS sell_proceeds,
+                    sum(CASE
+                        WHEN t.trade_timestamp >= m.game_start_ts THEN 0
+                        WHEN upper(t.side) = 'BUY' THEN -t.size * t.price
+                        ELSE t.size * t.price
+                    END) AS cash_flow,
+                    sum(CASE
+                        WHEN t.trade_timestamp >= m.game_start_ts THEN 0
+                        WHEN t.outcome_index = 0 AND upper(t.side) = 'BUY' THEN t.size
+                        WHEN t.outcome_index = 0 AND upper(t.side) = 'SELL' THEN -t.size
+                        ELSE 0
+                    END) AS net_shares_a,
+                    sum(CASE
+                        WHEN t.trade_timestamp >= m.game_start_ts THEN 0
+                        WHEN t.outcome_index = 1 AND upper(t.side) = 'BUY' THEN t.size
+                        WHEN t.outcome_index = 1 AND upper(t.side) = 'SELL' THEN -t.size
+                        ELSE 0
+                    END) AS net_shares_b
+                FROM trade_fact t
+                JOIN market_dim m USING (condition_id)
+                WHERE m.game_start_ts > 0
+                GROUP BY t.wallet, t.condition_id, m.game_start_ts
+                HAVING count(*) FILTER (
+                    WHERE t.trade_timestamp < m.game_start_ts
+                ) > 0
+            ), positioned AS (
+                SELECT
+                    a.*,
+                    m.event_id,
+                    m.event_slug,
+                    m.event_date,
+                    m.title,
+                    m.team_a,
+                    m.team_b,
+                    m.winner,
+                    m.resolution_type,
+                    m.market_status,
+                    m.market_closed,
+                    m.game_start_ts,
+                    m.game_start_source,
+                    m.current_price_a AS price_a,
+                    m.current_price_b AS price_b,
+                    m.final_price_a,
+                    m.final_price_b,
+                    a.net_shares_a - a.net_shares_b AS directional_net_shares,
+                    abs(a.net_shares_a - a.net_shares_b) > 1e-7 AS qualifying_position,
+                    CASE
+                        WHEN a.net_shares_a - a.net_shares_b > 1e-7 THEN m.team_a
+                        WHEN a.net_shares_b - a.net_shares_a > 1e-7 THEN m.team_b
+                        ELSE NULL
+                    END AS primary_pick,
+                    m.game_start_ts - a.last_trade_timestamp AS seconds_before_kickoff
+                FROM aggregated a
+                JOIN market_dim m USING (condition_id)
+            ), valued AS (
+                SELECT
+                    p.*,
+                    p.net_shares_a * p.price_a + p.net_shares_b * p.price_b
+                        AS mark_to_market_value,
+                    CASE
+                        WHEN p.resolution_type IN ('resolved', 'tie')
+                            THEN p.net_shares_a * p.final_price_a
+                               + p.net_shares_b * p.final_price_b
+                        ELSE NULL
+                    END AS settlement_value,
+                    CASE
+                        WHEN p.resolution_type IN ('resolved', 'tie')
+                            THEN p.cash_flow
+                               + p.net_shares_a * p.final_price_a
+                               + p.net_shares_b * p.final_price_b
+                        ELSE NULL
+                    END AS realized_pnl,
+                    p.cash_flow + p.net_shares_a * p.price_a
+                        + p.net_shares_b * p.price_b AS mark_to_market_pnl
+                FROM positioned p
+            )
+            SELECT
+                v.*,
+                v.realized_pnl AS pnl,
+                CASE
+                    WHEN v.resolution_type = 'tie' THEN 'tie'
+                    WHEN v.resolution_type <> 'resolved' THEN 'unsettled'
+                    WHEN NOT v.qualifying_position THEN 'hedged_or_flat'
+                    WHEN v.realized_pnl > 1e-9 THEN 'win'
+                    WHEN v.realized_pnl < -1e-9 THEN 'loss'
+                    ELSE 'flat'
+                END AS result,
+                CASE
+                    WHEN v.resolution_type = 'tie' THEN 'tie'
+                    WHEN v.resolution_type <> 'resolved' THEN 'unsettled'
+                    WHEN NOT v.qualifying_position THEN 'no_pick'
+                    WHEN v.primary_pick = v.winner THEN 'win'
+                    ELSE 'loss'
+                END AS pick_result,
+                all_l.buy_cost AS all_buy_cost,
+                all_l.sell_proceeds AS all_sell_proceeds,
+                all_l.realized_pnl AS all_realized_pnl,
+                all_l.mark_to_market_pnl AS all_mark_to_market_pnl,
+                all_l.result AS all_result
+            FROM valued v
+            JOIN wallet_game_ledger all_l USING (wallet, condition_id)
+            """
+        )
+        conn.execute(
+            """
             CREATE OR REPLACE TABLE pipeline_metadata AS
             SELECT * FROM (VALUES
                 ('source_repo', ?),
@@ -322,6 +468,8 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
             "markets": int(conn.execute("SELECT count(*) FROM market_dim").fetchone()[0]),
             "wallets": int(conn.execute("SELECT count(DISTINCT wallet) FROM trade_fact").fetchone()[0]),
             "wallet_game_ledgers": int(conn.execute("SELECT count(*) FROM wallet_game_ledger").fetchone()[0]),
+            "prematch_wallet_game_ledgers": int(conn.execute("SELECT count(*) FROM wallet_game_prematch_ledger").fetchone()[0]),
+            "prematch_trade_rows": int(conn.execute("SELECT coalesce(sum(trade_count), 0) FROM wallet_game_prematch_ledger").fetchone()[0]),
             "unsettled_ledgers": int(conn.execute("SELECT count(*) FROM wallet_game_ledger WHERE result = 'unsettled'").fetchone()[0]),
             "db_path": str(db_path),
         }
