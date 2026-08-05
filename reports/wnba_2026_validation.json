@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-05T08:43:16.627887+00:00",
+  "generated_at_utc": "2026-08-05T09:44:06.811213+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-05T08:42:38.817912+00:00",
+      "generated_at_utc": "2026-08-05T09:43:28.749093+00:00",
       "market_count": 270,
-      "trade_count": 845857,
-      "ledger_count": 104419,
+      "trade_count": 845907,
+      "ledger_count": 104439,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -21,7 +21,7 @@
     "ledger_result_counts": {
       "flat": 239,
       "loss": 45983,
-      "unsettled": 466,
+      "unsettled": 486,
       "win": 57731
     },
     "event_cache_events": 270,
@@ -59,12 +59,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 922431,
-        "parquet_raw_trades": 922431,
-        "manifest_unique_trades": 845857,
-        "parquet_unique_trades": 845857,
-        "duckdb_trades": 845857,
-        "refresh_duplicate_rows": 76574
+        "manifest_raw_trades": 924022,
+        "parquet_raw_trades": 924022,
+        "manifest_unique_trades": 845907,
+        "parquet_unique_trades": 845907,
+        "duckdb_trades": 845907,
+        "refresh_duplicate_rows": 78115
       }
     },
     {
@@ -101,7 +101,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 104419
+        "ledger_rows": 104439
       }
     },
     {
@@ -132,7 +132,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-05T08:43:15.178561+00:00"
+        "capture_time_utc": "2026-08-05T09:44:05.033837+00:00"
       }
     },
     {
@@ -140,7 +140,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 2.9103830456733704e-11,
+        "max_cash_flow_residual": 5.820766091346741e-11,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
