@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-05T17:34:30.949948+00:00",
+  "generated_at_utc": "2026-08-05T18:00:15.084265+00:00",
   "local": {
     "manifest": {
       "series_id": "3",
       "season": "MLB 2026",
       "start_date": "2026-03-01",
       "end_date": "2026-11-01",
-      "generated_at_utc": "2026-08-05T17:31:57.128126+00:00",
+      "generated_at_utc": "2026-08-05T17:57:48.495229+00:00",
       "market_count": 2067,
-      "trade_count": 9063806,
-      "ledger_count": 1393173,
+      "trade_count": 9064200,
+      "ledger_count": 1393330,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -22,7 +22,7 @@
     "ledger_result_counts": {
       "flat": 4577,
       "loss": 631746,
-      "unsettled": 11353,
+      "unsettled": 11510,
       "win": 745497
     },
     "event_cache_events": 3464,
@@ -60,12 +60,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 9116030,
-        "parquet_raw_trades": 9116030,
-        "manifest_unique_trades": 9063806,
-        "parquet_unique_trades": 9063806,
-        "duckdb_trades": 9063806,
-        "refresh_duplicate_rows": 52224
+        "manifest_raw_trades": 9164418,
+        "parquet_raw_trades": 9164418,
+        "manifest_unique_trades": 9064200,
+        "parquet_unique_trades": 9064200,
+        "duckdb_trades": 9064200,
+        "refresh_duplicate_rows": 100218
       }
     },
     {
@@ -102,7 +102,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 1393173
+        "ledger_rows": 1393330
       }
     },
     {
@@ -133,7 +133,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-05T17:34:12.805117+00:00"
+        "capture_time_utc": "2026-08-05T17:59:51.886015+00:00"
       }
     },
     {
@@ -141,7 +141,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 2.0372681319713593e-10,
+        "max_cash_flow_residual": 2.9103830456733704e-10,
         "max_realized_pnl_residual": 0.0,
         "unresolved_with_settlement_or_realized_pnl": 0,
         "settled_unsettled_result_rows": 0
