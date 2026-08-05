@@ -16,7 +16,7 @@ from polymarket_analytics.api import PolymarketAPI  # noqa: E402
 
 
 def in_date_scope(event: dict[str, Any], start: str | None, end: str | None) -> bool:
-    event_date = str(event.get("eventDate") or event.get("startTime") or "")[:10]
+    event_date = str(event.get("eventDate") or event.get("startTime") or event.get("startDate") or "")[:10]
     if not event_date:
         return False
     if start and event_date < start:

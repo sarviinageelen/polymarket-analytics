@@ -23,6 +23,12 @@ export const FALLBACK_CONFIG = {
     wnba_2026: { ...FALLBACK_SCHEDULE },
     wnba_2025: { ...FALLBACK_SCHEDULE },
     nfl_2025: { ...FALLBACK_SCHEDULE },
+    nba_2025: { ...FALLBACK_SCHEDULE },
+    mlb_2025: { ...FALLBACK_SCHEDULE },
+    mlb_2026: { ...FALLBACK_SCHEDULE },
+    nhl_2025: { ...FALLBACK_SCHEDULE },
+    ncaaf_2025: { ...FALLBACK_SCHEDULE },
+    ncaab_2025: { ...FALLBACK_SCHEDULE },
   },
 }
 
@@ -30,6 +36,12 @@ export const FALLBACK_SPORTS = [
   { id: "wnba_2026", label: "WNBA 2026" },
   { id: "wnba_2025", label: "WNBA 2025" },
   { id: "nfl_2025", label: "NFL 2025" },
+  { id: "nba_2025", label: "NBA 2025" },
+  { id: "mlb_2025", label: "MLB 2025" },
+  { id: "mlb_2026", label: "MLB 2026" },
+  { id: "nhl_2025", label: "NHL 2025" },
+  { id: "ncaaf_2025", label: "NCAAF 2025" },
+  { id: "ncaab_2025", label: "NCAAB 2025" },
 ]
 
 export const NAVIGATION = [

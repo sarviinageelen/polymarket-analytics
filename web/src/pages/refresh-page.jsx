@@ -188,7 +188,7 @@ function ScheduleOverview({ data, selectedSport, runtime, onSelectSport, onViewL
             return (
               <div key={item.id} className={cn("rounded-xl border p-3", selected && "border-foreground/25 bg-muted/35")}>
                 <div className="flex items-start justify-between gap-3">
-                  <div><p className="font-medium">{item.label}</p><p className="mt-0.5 text-xs text-muted-foreground">Full-time moneyline</p></div>
+                  <div><p className="font-medium">{item.label}</p><p className="mt-0.5 text-xs text-muted-foreground">Full-time moneyline</p>{item.source_note && <p className="mt-1 max-w-[28rem] text-[11px] leading-4 text-amber-700 dark:text-amber-300">Coverage note: {item.source_note}</p>}</div>
                   <StatusBadge status={schedule.enabled ? "success" : "neutral"}>{schedule.enabled ? "On" : "Paused"}</StatusBadge>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-3 text-xs">
@@ -226,7 +226,7 @@ function ScheduleOverview({ data, selectedSport, runtime, onSelectSport, onViewL
                 const selected = item.id === selectedSport
                 return (
                   <TableRow key={item.id} data-state={selected ? "selected" : undefined}>
-                    <TableCell><span className="block font-medium">{item.label}</span><span className="mt-0.5 block text-xs text-muted-foreground">Full-time moneyline</span></TableCell>
+                    <TableCell><span className="block font-medium">{item.label}</span><span className="mt-0.5 block text-xs text-muted-foreground">Full-time moneyline</span>{item.source_note && <span className="mt-1 block max-w-[30rem] text-[11px] leading-4 text-amber-700 dark:text-amber-300">Coverage note: {item.source_note}</span>}</TableCell>
                     <TableCell><StatusBadge status={schedule.enabled ? "success" : "neutral"}>{schedule.enabled ? "On" : "Paused"}</StatusBadge><span className="mt-1 block text-xs text-muted-foreground">{cadenceLabel(schedule)}</span></TableCell>
                     <TableCell><span className="block text-sm font-medium">{schedule.enabled ? formatDate(schedule.next_run_at, { year: undefined, timeZoneName: undefined }) : "Not scheduled"}</span></TableCell>
                     <TableCell>{latestRun ? <><StatusBadge status={runStatus(latestRun.status)}>{runLabel(latestRun.status)}</StatusBadge><span className="mt-1 block text-xs text-muted-foreground">{formatDate(latestRun.finished_at_utc || latestRun.started_at_utc, { year: undefined, timeZoneName: undefined })} · {formatDuration(latestRun.duration_seconds)}</span></> : <span className="text-muted-foreground">No runs</span>}</TableCell>
@@ -401,7 +401,7 @@ export function RefreshPage({
             </div>
             <Separator />
             <div className="flex items-start justify-between gap-4">
-              <div><p className="text-sm font-medium">Publish to GitHub</p><p className="mt-1 text-xs text-muted-foreground">Push the latest workbook and validation report.</p></div>
+              <div><p className="text-sm font-medium">Publish to GitHub</p><p className="mt-1 text-xs text-muted-foreground">Upload the workbook and commit its report and validation evidence.</p></div>
               <Switch checked={Boolean(form.auto_push)} onCheckedChange={(checked) => setField("auto_push", checked)} aria-label={`Publish ${selected?.label} refreshes to GitHub`} />
             </div>
             <div className="mt-auto space-y-2">

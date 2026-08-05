@@ -35,6 +35,7 @@ from fetcher.persistence.parquet_persister import DataType, ParquetPersister  # 
 from fetcher.persistence.swappable_queue import SwappableQueue  # noqa: E402
 from fetcher.workers.trade_fetcher import TradeFetcher  # noqa: E402
 from fetcher.workers.worker_manager import WorkerManager  # noqa: E402
+from polymarket_analytics.market_semantics import is_moneyline_market  # noqa: E402
 from polymarket_analytics.trade_identity import identity_sql_columns, trade_identity  # noqa: E402
 
 
@@ -93,17 +94,18 @@ def load_moneyline_markets(
     season_label: str,
     start_date: str | None = None,
     end_date: str | None = None,
+    allow_untagged_binary: bool = False,
 ) -> list[dict[str, Any]]:
     events = json.loads(events_path.read_text(encoding="utf-8"))
     markets: list[dict[str, Any]] = []
     for event in events:
-        event_date = str(event.get("eventDate", ""))[:10]
+        event_date = str(event.get("eventDate") or event.get("startTime") or event.get("startDate") or "")[:10]
         if start_date and event_date < start_date:
             continue
         if end_date and event_date > end_date:
             continue
         for market in event.get("markets") or []:
-            if market.get("sportsMarketType") != "moneyline":
+            if not is_moneyline_market(market, allow_untagged_binary=allow_untagged_binary):
                 continue
             condition_id = market.get("conditionId")
             if not condition_id:
@@ -287,17 +289,27 @@ def load_existing_results(trade_dir: Path) -> dict[str, dict[str, Any]]:
     import duckdb
 
     pattern = str(trade_dir / "*.parquet").replace("'", "''")
-    rows = duckdb.sql(
-        f"""
-        SELECT
-            conditionId,
-            any_value(event_id),
-            any_value(title),
-            count(*)
-        FROM read_parquet('{pattern}')
-        GROUP BY conditionId
-        """
-    ).fetchall()
+    temp_dir = trade_dir.parent / ".duckdb_count_tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    conn = duckdb.connect()
+    conn.execute("SET memory_limit='1GB'")
+    conn.execute("SET threads=2")
+    conn.execute("SET preserve_insertion_order=false")
+    conn.execute(f"SET temp_directory='{str(temp_dir).replace(chr(39), chr(39) * 2)}'")
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT
+                conditionId,
+                any_value(event_id),
+                any_value(title),
+                count(*)
+            FROM read_parquet('{pattern}', union_by_name=true)
+            GROUP BY conditionId
+            """
+        ).fetchall()
+    finally:
+        conn.close()
     return {
         str(condition_id): {
             "condition_id": str(condition_id),
@@ -310,32 +322,46 @@ def load_existing_results(trade_dir: Path) -> dict[str, dict[str, Any]]:
     }
 
 
-def unique_trade_counts(trade_dir: Path) -> tuple[int, int]:
-    """Return raw and exact-key-deduplicated trade counts for a Parquet snapshot."""
+def unique_trade_counts(trade_dir: Path) -> tuple[int, int, dict[str, int]]:
+    """Return raw, canonical, and per-market canonical Parquet counts."""
 
     files = list(trade_dir.glob("*.parquet"))
     if not files:
-        return 0, 0
+        return 0, 0, {}
     import duckdb
 
     pattern = str(trade_dir / "*.parquet").replace("'", "''")
+    temp_dir = trade_dir.parent / ".duckdb_count_tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect()
-    identity_columns = ", ".join(identity_sql_columns())
+    conn.execute("SET memory_limit='1GB'")
+    conn.execute("SET threads=2")
+    conn.execute("SET preserve_insertion_order=false")
+    conn.execute(f"SET temp_directory='{str(temp_dir).replace(chr(39), chr(39) * 2)}'")
+    identity_projection = ", ".join(
+        f"{expression} AS c{index}"
+        for index, expression in enumerate(identity_sql_columns())
+    )
     try:
         raw = int(conn.execute(f"SELECT count(*) FROM read_parquet('{pattern}', union_by_name=true)").fetchone()[0])
-        unique = int(
-            conn.execute(
-                f"""
-                SELECT count(*) FROM (
-                    SELECT DISTINCT {identity_columns}
-                    FROM read_parquet('{pattern}', union_by_name=true)
-                )
-                """
-            ).fetchone()[0]
-        )
+        # Keep the canonical market key in the projection so validation can
+        # reconcile each market after incremental refreshes introduce
+        # overlapping raw rows. The identity expressions remain exactly the
+        # same ones used by DuckDB's silver-layer deduplication.
+        canonical_relation = f"""
+            (
+                SELECT DISTINCT {identity_projection}
+                FROM read_parquet('{pattern}', union_by_name=true)
+            )
+        """
+        per_market_rows = conn.execute(
+            f"SELECT c2, count(*) FROM {canonical_relation} GROUP BY c2"
+        ).fetchall()
+        per_market = {str(condition_id).lower(): int(row_count) for condition_id, row_count in per_market_rows}
+        unique = sum(per_market.values())
     finally:
         conn.close()
-    return raw, unique
+    return raw, unique, per_market
 
 
 def main() -> int:
@@ -350,6 +376,7 @@ def main() -> int:
     parser.add_argument("--season-label", default="NFL 2025")
     parser.add_argument("--start-date", help="Inclusive YYYY-MM-DD event date")
     parser.add_argument("--end-date", help="Inclusive YYYY-MM-DD event date")
+    parser.add_argument("--allow-untagged-binary", action="store_true", help="Allow legacy two-outcome cbb- markets without sportsMarketType")
     args = parser.parse_args()
 
     out_dir = ROOT / args.out_dir
@@ -360,6 +387,7 @@ def main() -> int:
         season_label=args.season_label,
         start_date=args.start_date,
         end_date=args.end_date,
+        allow_untagged_binary=args.allow_untagged_binary,
     )
     if args.limit:
         markets = markets[: args.limit]
@@ -473,7 +501,11 @@ def main() -> int:
     failures.sort(key=lambda row: int(row["event_id"]))
     out_dir.mkdir(parents=True, exist_ok=True)
     write_markets(out_dir / "moneyline_markets.parquet", markets)
-    raw_trade_rows, unique_trade_rows = unique_trade_counts(trade_dir)
+    raw_trade_rows, unique_trade_rows, canonical_market_counts = unique_trade_counts(trade_dir)
+    for result in results:
+        result["canonical_rows"] = canonical_market_counts.get(
+            str(result.get("condition_id", "")).lower(), 0
+        )
     manifest = {
         "source_repo": "https://github.com/Nav1212/PolyMarketAnalytics",
         "source_revision": git_revision(),
@@ -481,7 +513,8 @@ def main() -> int:
         "capture_time_utc": datetime.now(timezone.utc).isoformat(),
         "series_id": args.series_id,
         "season": args.season_label,
-        "market_filter": "sportsMarketType == moneyline",
+        "market_filter": "sportsMarketType == moneyline OR legacy binary cbb market" if args.allow_untagged_binary else "sportsMarketType == moneyline",
+        "allow_untagged_binary": args.allow_untagged_binary,
         "taker_only": False,
         "events_path": str(ROOT / args.events),
         "start_date": args.start_date,

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import io
 import json
 import os
@@ -33,6 +34,7 @@ CONFIG_PATH = CONTROL_PANEL_DIR / "config.json"
 STATE_PATH = CONTROL_PANEL_DIR / "state.json"
 LOG_PATH = CONTROL_PANEL_DIR / "control_panel.log"
 RUN_LOG_DIR = CONTROL_PANEL_DIR / "runs"
+WORKBOOK_RELEASE_TAG = "generated-workbooks"
 
 SENSITIVE_LOG_PATTERN = re.compile(
     r"(?i)(api[_-]?key|token|authorization|cookie|password|secret|private[_-]?key)"
@@ -82,6 +84,92 @@ SPORTS: dict[str, dict[str, Any]] = {
         "report": "reports/nav_nfl_2025_moneyline.md",
         "validation": "reports/nfl_2025_validation.json",
         "workers": 4,
+    },
+    "nba_2025": {
+        "label": "NBA 2025",
+        "season_label": "NBA 2025",
+        "series_id": 10345,
+        "start_date": "2025-10-01",
+        "end_date": "2026-06-30",
+        "events": "data/raw/nba_2025_events.json",
+        "experiment_dir": "data/experiments/nav_nba_2025_moneyline",
+        "db": "data/experiments/nav_nba_2025_moneyline/silver/nba_2025_moneyline.duckdb",
+        "workbook": "reports/generated/nba_2025_moneyline_picks.xlsx",
+        "report": "reports/nba_2025_moneyline.md",
+        "validation": "reports/nba_2025_validation.json",
+        "workers": 4,
+    },
+    "mlb_2025": {
+        "label": "MLB 2025",
+        "season_label": "MLB 2025",
+        "series_id": 3,
+        "start_date": "2025-03-01",
+        "end_date": "2025-11-01",
+        "events": "data/raw/mlb_2025_events.json",
+        "experiment_dir": "data/experiments/nav_mlb_2025_moneyline",
+        "db": "data/experiments/nav_mlb_2025_moneyline/silver/mlb_2025_moneyline.duckdb",
+        "workbook": "reports/generated/mlb_2025_moneyline_picks.xlsx",
+        "report": "reports/mlb_2025_moneyline.md",
+        "validation": "reports/mlb_2025_validation.json",
+        "workers": 4,
+    },
+    "mlb_2026": {
+        "label": "MLB 2026",
+        "season_label": "MLB 2026",
+        "series_id": 3,
+        "start_date": "2026-03-01",
+        "end_date": "2026-11-01",
+        "events": "data/raw/mlb_2026_events.json",
+        "experiment_dir": "data/experiments/nav_mlb_2026_moneyline",
+        "db": "data/experiments/nav_mlb_2026_moneyline/silver/mlb_2026_moneyline.duckdb",
+        "workbook": "reports/generated/mlb_2026_moneyline_picks.xlsx",
+        "report": "reports/mlb_2026_moneyline.md",
+        "validation": "reports/mlb_2026_validation.json",
+        "workers": 4,
+    },
+    "nhl_2025": {
+        "label": "NHL 2025",
+        "season_label": "NHL 2025",
+        "series_id": 10346,
+        "start_date": "2025-10-01",
+        "end_date": "2026-06-30",
+        "events": "data/raw/nhl_2025_events.json",
+        "experiment_dir": "data/experiments/nav_nhl_2025_moneyline",
+        "db": "data/experiments/nav_nhl_2025_moneyline/silver/nhl_2025_moneyline.duckdb",
+        "workbook": "reports/generated/nhl_2025_moneyline_picks.xlsx",
+        "report": "reports/nhl_2025_moneyline.md",
+        "validation": "reports/nhl_2025_validation.json",
+        "workers": 4,
+    },
+    "ncaaf_2025": {
+        "label": "NCAAF 2025",
+        "season_label": "NCAAF 2025",
+        "series_id": 10210,
+        "start_date": "2025-08-01",
+        "end_date": "2026-01-31",
+        "events": "data/raw/ncaaf_2025_events.json",
+        "experiment_dir": "data/experiments/nav_ncaaf_2025_moneyline",
+        "db": "data/experiments/nav_ncaaf_2025_moneyline/silver/ncaaf_2025_moneyline.duckdb",
+        "workbook": "reports/generated/ncaaf_2025_moneyline_picks.xlsx",
+        "report": "reports/ncaaf_2025_moneyline.md",
+        "validation": "reports/ncaaf_2025_validation.json",
+        "workers": 4,
+    },
+    "ncaab_2025": {
+        "label": "NCAAB 2025",
+        "season_label": "NCAAB 2025",
+        "series_id": 10012,
+        "start_date": "2025-01-01",
+        "end_date": "2025-12-31",
+        "events": "data/raw/ncaab_2025_events.json",
+        "experiment_dir": "data/experiments/nav_ncaab_2025_moneyline",
+        "db": "data/experiments/nav_ncaab_2025_moneyline/silver/ncaab_2025_moneyline.duckdb",
+        "workbook": "reports/generated/ncaab_2025_moneyline_picks.xlsx",
+        "report": "reports/ncaab_2025_moneyline.md",
+        "validation": "reports/ncaab_2025_validation.json",
+        "workers": 4,
+        "allow_untagged_binary": True,
+        "source_note": "The current official NCAAB series contains 255 legacy CBB moneyline markets dated Feb 8–12, 2025; source coverage is limited rather than a complete season.",
     },
 }
 
@@ -177,12 +265,47 @@ def repository_name() -> str | None:
 
 
 def public_download_url(sport: str, branch: str | None = None) -> str | None:
+    """Return the stable GitHub Release URL for a generated workbook.
+
+    Workbooks are release assets rather than Git blobs.  This keeps frequent
+    refreshes out of repository history and supports files above GitHub's
+    normal per-blob size limit.  ``branch`` remains accepted for API backwards
+    compatibility with older callers.
+    """
+
+    del branch
     repo = repository_name()
     if not repo or sport not in SPORTS:
         return None
-    ref = quote(branch or current_branch(), safe="/")
-    path = quote(str(SPORTS[sport]["workbook"]), safe="/")
-    return f"https://github.com/{repo}/raw/refs/heads/{ref}/{path}"
+    filename = quote(Path(str(SPORTS[sport]["workbook"])).name)
+    tag = quote(WORKBOOK_RELEASE_TAG)
+    return f"https://github.com/{repo}/releases/download/{tag}/{filename}"
+
+
+def git_publication_paths(sport: str) -> list[str]:
+    """Return the reviewable artifacts that belong in normal Git history."""
+
+    return [str(SPORTS[sport][key]) for key in ("report", "validation")]
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def release_asset_is_current(release: dict[str, Any], workbook: Path, digest: str) -> bool:
+    """Check whether a release already contains this exact workbook."""
+
+    expected_digest = f"sha256:{digest}"
+    for asset in release.get("assets", []):
+        if not isinstance(asset, dict) or asset.get("name") != workbook.name:
+            continue
+        remote_digest = str(asset.get("digest") or "").lower()
+        return remote_digest == expected_digest
+    return False
 
 
 SCHEDULE_KEYS = ("interval_value", "interval_unit", "enabled", "auto_push", "full_validation")
@@ -357,6 +480,7 @@ def dataset_status(sport: str, config: dict[str, Any]) -> dict[str, Any]:
         "label": spec["label"],
         "season": spec["season_label"],
         "series_id": spec["series_id"],
+        "source_note": spec.get("source_note"),
         "available": bool(manifest or summary or workbook_path.exists()),
         "generated_at_utc": generated_at,
         "counts": {
@@ -445,6 +569,8 @@ def build_pipeline_commands(sport: str, full_validation: bool) -> list[tuple[str
                 "scripts/analyze_sports_moneyline.py",
                 "--experiment-dir",
                 experiment,
+                "--report",
+                str(spec["report"]),
             ],
         ),
         (
@@ -471,6 +597,9 @@ def build_pipeline_commands(sport: str, full_validation: bool) -> list[tuple[str
         "--output",
         str(spec["validation"]),
     ]
+    if spec.get("allow_untagged_binary"):
+        commands[1][1].append("--allow-untagged-binary")
+        validation.append("--allow-untagged-binary")
     if not full_validation:
         validation.append("--skip-network")
     commands.append(("Validate the refreshed snapshot", validation))
@@ -895,35 +1024,119 @@ class ControlPanel:
             raise RuntimeError(
                 f"configured push branch {branch!r} does not match the checked-out branch {current_branch()!r}"
             )
-        paths = [SPORTS[sport][key] for key in ("workbook", "report", "validation")]
+        paths = git_publication_paths(sport)
         allowed = {str(path) for path in paths}
         staged_before = (run_command(["git", "diff", "--cached", "--name-only"]).stdout or "").splitlines()
         if staged_before:
             raise RuntimeError("Git has pre-staged changes; clear or commit them before auto-push")
         add_result = run_command(["git", "add", "--", *paths])
         if add_result.returncode != 0:
+            run_command(["git", "restore", "--staged", "--", *paths])
             raise RuntimeError((add_result.stdout or "git add failed").strip())
         staged_after = set((run_command(["git", "diff", "--cached", "--name-only"]).stdout or "").splitlines())
         if not staged_after.issubset(allowed):
-            run_command(["git", "reset"])
+            run_command(["git", "restore", "--staged", "--", *paths])
             raise RuntimeError(f"auto-push found unexpected staged files: {sorted(staged_after - allowed)}")
-        if not staged_after:
-            return {
-                "pushed": False,
-                "reason": "no artifact changes",
-                "commit": (run_command(["git", "rev-parse", "HEAD"]).stdout or "").strip(),
-            }
-        message = f"automated refresh {SPORTS[sport]['label']}"
-        commit = run_command(["git", "commit", "-m", message])
-        if commit.returncode != 0:
-            run_command(["git", "reset"])
-            raise RuntimeError((commit.stdout or "git commit failed").strip())
-        push = run_command(["git", "push", "origin", f"HEAD:{branch}"])
-        if push.returncode != 0:
-            raise RuntimeError((push.stdout or "git push failed").strip())
+        committed = False
+        if staged_after:
+            message = f"automated refresh {SPORTS[sport]['label']}"
+            commit = run_command(["git", "commit", "-m", message])
+            if commit.returncode != 0:
+                run_command(["git", "restore", "--staged", "--", *paths])
+                raise RuntimeError((commit.stdout or "git commit failed").strip())
+            push = run_command(["git", "push", "origin", f"HEAD:{branch}"])
+            if push.returncode != 0:
+                raise RuntimeError((push.stdout or "git push failed").strip())
+            committed = True
+
+        workbook_result = self.publish_workbook(sport, branch)
         revision = (run_command(["git", "rev-parse", "HEAD"]).stdout or "").strip()
-        self._log(f"pushed {SPORTS[sport]['label']} artifacts at {revision}")
-        return {"pushed": True, "commit": revision, "branch": branch}
+        published = committed or bool(workbook_result.get("uploaded"))
+        reason = None if published else "no artifact changes"
+        self._log(
+            f"published {SPORTS[sport]['label']} artifacts at {revision}; "
+            f"workbook {'uploaded' if workbook_result.get('uploaded') else 'unchanged'}"
+        )
+        return {
+            "pushed": published,
+            "reason": reason,
+            "commit": revision,
+            "branch": branch,
+            "workbook": workbook_result,
+            "workbook_url": public_download_url(sport, branch),
+        }
+
+    def publish_workbook(self, sport: str, branch: str) -> dict[str, Any]:
+        """Create or update the dataset workbook on the shared GitHub Release."""
+
+        repo = repository_name()
+        if not repo:
+            raise RuntimeError("the GitHub repository could not be resolved from the origin remote")
+        workbook = ROOT / str(SPORTS[sport]["workbook"])
+        if not workbook.is_file():
+            raise RuntimeError(f"generated workbook is missing: {workbook.relative_to(ROOT)}")
+
+        digest = file_sha256(workbook)
+        release_result = run_command(
+            ["gh", "api", f"repos/{repo}/releases/tags/{WORKBOOK_RELEASE_TAG}"]
+        )
+        if release_result.returncode == 0:
+            try:
+                release = json.loads(release_result.stdout or "{}")
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("GitHub returned invalid release metadata") from exc
+        else:
+            if "HTTP 404" not in (release_result.stdout or ""):
+                raise RuntimeError((release_result.stdout or "GitHub release lookup failed").strip())
+            create = run_command(
+                [
+                    "gh",
+                    "release",
+                    "create",
+                    WORKBOOK_RELEASE_TAG,
+                    "--repo",
+                    repo,
+                    "--target",
+                    branch,
+                    "--title",
+                    "Generated sports workbooks",
+                    "--notes",
+                    "Latest validated Excel exports from the Polymarket Analytics control panel. Assets are replaced in place after successful refreshes.",
+                ]
+            )
+            if create.returncode != 0:
+                raise RuntimeError((create.stdout or "GitHub release creation failed").strip())
+            release = {"assets": []}
+
+        if release_asset_is_current(release, workbook, digest):
+            return {
+                "uploaded": False,
+                "reason": "workbook unchanged",
+                "sha256": digest,
+                "bytes": workbook.stat().st_size,
+                "url": public_download_url(sport, branch),
+            }
+
+        upload = run_command(
+            [
+                "gh",
+                "release",
+                "upload",
+                WORKBOOK_RELEASE_TAG,
+                str(workbook),
+                "--clobber",
+                "--repo",
+                repo,
+            ]
+        )
+        if upload.returncode != 0:
+            raise RuntimeError((upload.stdout or "GitHub workbook upload failed").strip())
+        return {
+            "uploaded": True,
+            "sha256": digest,
+            "bytes": workbook.stat().st_size,
+            "url": public_download_url(sport, branch),
+        }
 
     def find_run(self, run_id: str) -> dict[str, Any] | None:
         with self.lock:

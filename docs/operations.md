@@ -32,7 +32,7 @@ The DuckDB command is API-free. A cache-only test has verified that the base
 collector does not call the network when valid cached metadata and trade files
 are present.
 
-## WNBA refresh runbook
+## Sport/year refresh runbook
 
 Run metadata discovery before the trade collector. The metadata command is
 cache-first when the request arguments match the saved manifest; use force for
@@ -89,6 +89,33 @@ WNBA 2025 uses the same series with its own isolated cache and season window:
 The control panel supplies those arguments automatically when WNBA 2025 is
 selected. Every downstream path uses `nav_wnba_2025_moneyline`, so refreshing
 the historical season cannot overwrite WNBA 2026.
+
+The same cache-first sequence is registered for every requested dataset:
+
+| Dataset | Gamma series | Event window | Experiment directory |
+| --- | ---: | --- | --- |
+| NFL 2025 | 10187 | 2025-09-04 to 2026-02-08 | `nav_nfl_2025_moneyline` |
+| NBA 2025 | 10345 | 2025-10-01 to 2026-06-30 | `nav_nba_2025_moneyline` |
+| MLB 2025 | 3 | 2025-03-01 to 2025-11-01 | `nav_mlb_2025_moneyline` |
+| MLB 2026 | 3 | 2026-03-01 to 2026-11-01 | `nav_mlb_2026_moneyline` |
+| NHL 2025 | 10346 | 2025-10-01 to 2026-06-30 | `nav_nhl_2025_moneyline` |
+| NCAAF 2025 | 10210 | 2025-08-01 to 2026-01-31 | `nav_ncaaf_2025_moneyline` |
+| NCAAB 2025 | 10012 | 2025-01-01 to 2025-12-31 | `nav_ncaab_2025_moneyline` |
+
+The two WNBA datasets use the same pattern and are listed in the control-panel
+registry as well. MLB 2026 includes open markets, so its scheduled refreshes
+continue to update those trade windows. NCAAB 2025 uses the explicit
+`--allow-untagged-binary` exception for legacy `cbb-` markets and remains
+marked as limited source coverage in its validation report and scheduler view.
+
+Each registry entry is isolated end to end: its own cached event JSON (the full
+returned event/market payload), the complete fetched moneyline trade results
+as Parquet bronze files, DuckDB silver database,
+analysis CSVs/Markdown report, validation JSON, scheduler record, and Excel
+export path. A refresh reads settled markets from that dataset's local cache
+and only goes back to the APIs for open or deliberately refreshed windows.
+The cache and derived data are ignored by Git and should be included in the
+VPS backup under `backups/`.
 
 ## Validation commands
 

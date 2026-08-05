@@ -1,0 +1,320 @@
+{
+  "generated_at_utc": "2026-08-04T19:16:19.533715+00:00",
+  "local": {
+    "manifest": {
+      "series_id": "10210",
+      "season": "NCAAF 2025",
+      "start_date": "2025-08-01",
+      "end_date": "2026-01-31",
+      "generated_at_utc": "2026-08-04T17:51:00.643842+00:00",
+      "market_count": 715,
+      "trade_count": 1197626,
+      "ledger_count": 202698,
+      "allow_untagged_binary": false
+    },
+    "market_status_resolution_counts": {
+      "closed:resolved": 714,
+      "stale_unresolved:unresolved": 1
+    },
+    "ledger_result_counts": {
+      "flat": 2528,
+      "loss": 91485,
+      "unsettled": 51,
+      "win": 108634
+    },
+    "event_cache_events": 831,
+    "event_cache_moneyline_markets": 715
+  },
+  "external": {
+    "gamma_scope": {
+      "remote_events": 831,
+      "local_events": 831,
+      "remote_moneyline_markets": 715,
+      "local_moneyline_markets": 715,
+      "missing_local_conditions": 0,
+      "extra_local_conditions": 0
+    }
+  },
+  "onchain": {
+    "samples": [
+      {
+        "transaction_hash": "0x8dcff42cb2e86d81d95634e276ba3dd61322962c7367e82f01c5168a3a72b342",
+        "endpoint": "https://polygon.drpc.org",
+        "receipt_found": true,
+        "status": "0x1"
+      },
+      {
+        "transaction_hash": "0x2d56115bebcf5ca88e98bdbe26e5d6ece6e004333122b1a9f5d92a8e97dfd1f2",
+        "endpoint": "https://polygon.drpc.org",
+        "receipt_found": true,
+        "status": "0x1"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "name": "event cache scope and moneyline filter",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "events": 831,
+        "moneyline_markets": 715,
+        "db_markets": 715,
+        "duplicate_event_ids": 0,
+        "duplicate_condition_ids": 0
+      }
+    },
+    {
+      "name": "manifest versus DuckDB market census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_market_count": 715,
+        "db_market_count": 715,
+        "manifest_failures": 0,
+        "manifest_condition_ids": 715,
+        "db_condition_ids": 715
+      }
+    },
+    {
+      "name": "Parquet versus DuckDB unique trade census",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "manifest_raw_trades": 1197626,
+        "parquet_raw_trades": 1197626,
+        "manifest_unique_trades": 1197626,
+        "parquet_unique_trades": 1197626,
+        "duckdb_trades": 1197626,
+        "refresh_duplicate_rows": 0
+      }
+    },
+    {
+      "name": "DuckDB canonical trade identity is unique",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "duplicate_trade_rows": 0,
+        "method": "validator DuckDB DISTINCT"
+      }
+    },
+    {
+      "name": "Trade counts reconcile by market",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "markets_with_count_mismatch": 0,
+        "absolute_trade_row_difference": 0
+      }
+    },
+    {
+      "name": "Trade identity has no conflicting outcome facts",
+      "status": "pass",
+      "severity": "critical",
+      "evidence": {
+        "conflicting_identity_keys": 0,
+        "conflicting_duplicate_rows": 0,
+        "method": "collector canonical identity census plus DuckDB canonical-row reconciliation"
+      }
+    },
+    {
+      "name": "trade-to-market referential integrity",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "orphan_trade_rows": 0,
+        "ledger_rows": 202698
+      }
+    },
+    {
+      "name": "market shape and price domains",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "duplicate_market_keys": 0,
+        "bad_market_rows": 0
+      }
+    },
+    {
+      "name": "trade domains and required fields",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "invalid_trade_rows": 0,
+        "null_wallet": 0,
+        "null_condition_id": 0,
+        "null_event_id": 0,
+        "null_trade_timestamp": 0
+      }
+    },
+    {
+      "name": "trade timestamps are plausible",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "future_trade_rows": 0,
+        "out_of_window_rows": 0,
+        "capture_time_utc": "2026-08-04T19:16:10.924718+00:00"
+      }
+    },
+    {
+      "name": "replay accounting identities",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "max_cash_flow_residual": 3.92901711165905e-10,
+        "max_realized_pnl_residual": 0.0,
+        "unresolved_with_settlement_or_realized_pnl": 0,
+        "settled_unsettled_result_rows": 0
+      }
+    },
+    {
+      "name": "candidate filters match saved CSVs",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "5_game_csv": 648,
+        "5_game_query": 648,
+        "10_game_csv": 364,
+        "10_game_query": 364
+      }
+    },
+    {
+      "name": "manifest market results cover DuckDB",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "manifest_results": 715,
+        "db_markets": 715,
+        "missing_in_db": 0
+      }
+    },
+    {
+      "name": "workbook reload and profile hyperlinks",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "sheets": [
+          "Read Me",
+          "Odds vs Results",
+          "Games",
+          "Picks Matrix (10+)",
+          "Picks Matrix (5+)",
+          "Picks Ledger (10+)",
+          "Picks Ledger (5+)",
+          "Open Exposure",
+          "Bettor Summary (10+)",
+          "Bettor Summary (5+)"
+        ],
+        "hyperlinks_to_profiles": 63970,
+        "sample_profile_url": "https://polymarket.com/profile/0xb889590a2fab0c810584a660518c4c020325a430",
+        "table_counts": {
+          "Read Me": 0,
+          "Odds vs Results": 0,
+          "Games": 0,
+          "Picks Matrix (10+)": 0,
+          "Picks Matrix (5+)": 0,
+          "Picks Ledger (10+)": 0,
+          "Picks Ledger (5+)": 0,
+          "Open Exposure": 0,
+          "Bettor Summary (10+)": 0,
+          "Bettor Summary (5+)": 0
+        },
+        "worksheet_filter_refs": {}
+      }
+    },
+    {
+      "name": "workbook table/filter XML compatibility",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "table_parts": 8,
+        "table_auto_filters": 8,
+        "worksheet_filter_counts": {
+          "xl/worksheets/sheet1.xml": 0,
+          "xl/worksheets/sheet10.xml": 0,
+          "xl/worksheets/sheet2.xml": 0,
+          "xl/worksheets/sheet3.xml": 0,
+          "xl/worksheets/sheet4.xml": 1,
+          "xl/worksheets/sheet5.xml": 1,
+          "xl/worksheets/sheet6.xml": 0,
+          "xl/worksheets/sheet7.xml": 0,
+          "xl/worksheets/sheet8.xml": 0,
+          "xl/worksheets/sheet9.xml": 0
+        }
+      }
+    },
+    {
+      "name": "Gamma event and moneyline census",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "remote_events": 831,
+        "local_events": 831,
+        "remote_moneyline_markets": 715,
+        "local_moneyline_markets": 715,
+        "missing_local_conditions": 0,
+        "extra_local_conditions": 0
+      }
+    },
+    {
+      "name": "Gamma market metadata spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "event_id": "155719",
+        "condition_id": "0x15d93d47ffd15f0283d73fe25fc61964035250382647c7fcd40cc92bad2cf8d5",
+        "local_market_closed": true,
+        "remote_market_closed": true,
+        "outcomes_match": true
+      }
+    },
+    {
+      "name": "CLOB status spot check",
+      "status": "pass",
+      "severity": "high",
+      "evidence": {
+        "condition_id": "0x15d93d47ffd15f0283d73fe25fc61964035250382647c7fcd40cc92bad2cf8d5",
+        "closed": true,
+        "accepting_orders": false,
+        "local_market_closed": true
+      }
+    },
+    {
+      "name": "ESPN schedule spot check",
+      "status": "not_run",
+      "severity": "low",
+      "evidence": {
+        "error": "<HTTPError 403: 'Forbidden'>"
+      }
+    },
+    {
+      "name": "Polygon transaction receipt spot check",
+      "status": "pass",
+      "severity": "medium",
+      "evidence": {
+        "samples": [
+          {
+            "transaction_hash": "0x8dcff42cb2e86d81d95634e276ba3dd61322962c7367e82f01c5168a3a72b342",
+            "endpoint": "https://polygon.drpc.org",
+            "receipt_found": true,
+            "status": "0x1"
+          },
+          {
+            "transaction_hash": "0x2d56115bebcf5ca88e98bdbe26e5d6ece6e004333122b1a9f5d92a8e97dfd1f2",
+            "endpoint": "https://polygon.drpc.org",
+            "receipt_found": true,
+            "status": "0x1"
+          }
+        ],
+        "usable_samples": 2
+      }
+    }
+  ],
+  "counts": {
+    "pass": 19,
+    "warning": 0,
+    "fail": 0,
+    "not_run": 1
+  }
+}

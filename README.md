@@ -1,7 +1,14 @@
 # Polymarket Analytics
 
-Reproducible research tooling for Polymarket sports data, covering the 2025 NFL
-season and the 2025 and 2026 WNBA seasons with full-game moneyline analysis.
+Reproducible research tooling for Polymarket sports data, covering NFL 2025,
+WNBA 2025–2026, NBA 2025, MLB 2025–2026, NHL 2025, NCAAF 2025, and NCAAB 2025
+with full-game moneyline analysis.
+
+Every configured dataset has its own cached Gamma event snapshot, Parquet
+trade layer, DuckDB analytical database, validation report, scheduler entry,
+and Excel workbook path. NCAAB 2025 is intentionally marked as limited
+coverage: the current official series exposes 255 legacy CBB moneyline markets
+dated February 8–12, 2025 rather than a complete season.
 
 The project keeps the raw API snapshot, a Parquet bronze layer, a DuckDB silver
 layer, replayed wallet/game ledgers, and human-readable reports separate. Large
@@ -10,32 +17,27 @@ code- and documentation-first.
 
 ## Current status
 
-The current local experiment contains:
+The latest local captures for the requested additions are:
 
-- 285 NFL 2025 moneyline markets, including 13 playoff markets;
-- 1,677,376 cached trade rows;
-- 89,402 wallets;
-- 332,084 wallet/game ledgers; and
-- a persistent local DuckDB database.
+| Dataset | Moneyline markets | Canonical trades | Wallet/game ledgers | Validation |
+| --- | ---: | ---: | ---: | --- |
+| NBA 2025 | 1,413 | 20,329,938 | 3,460,813 | 19 passed, 1 optional check unavailable |
+| MLB 2025 | 2,365 | 2,707,486 | 734,069 | 19 passed, 1 optional check unavailable |
+| MLB 2026 | 2,052 | 9,006,718 | 1,382,868 | 19 passed, 1 optional check unavailable |
+| NHL 2025 | 1,417 | 7,103,617 | 1,438,996 | 19 passed, 1 optional check unavailable |
+| NCAAF 2025 | 715 | 1,197,626 | 202,698 | 19 passed, 1 optional check unavailable |
+| NCAAB 2025 | 255 | 11,294 | 7,446 | 19 passed, 1 warning, 1 optional check unavailable |
 
-The WNBA 2026 regular-season snapshot contains 265 moneyline markets, 829,808
-unique trades, 18,268 wallets, and 102,394 wallet/game ledgers. It includes
-closed, live/open, stale/unresolved, and upcoming markets. See the
-[WNBA analysis report](reports/wnba_2026_moneyline.md) and the
-[validation evidence](reports/wnba_2026_validation.json). The NFL and WNBA
-snapshots each currently pass 20/20 local, workbook, external, and on-chain
-validation checks.
+The optional check is the ESPN schedule comparison, which currently returns
+HTTP 403 from the provider; it is recorded as `not_run`, not as a data failure.
+NCAAB is also explicitly marked as limited coverage: the current official
+Polymarket series exposes 255 legacy CBB moneyline markets dated February
+8–12, 2025, rather than a complete 2025 college-basketball season archive.
 
-The historical [WNBA 2025 analysis](reports/wnba_2025_moneyline.md) contains
-283 full-game moneylines, 122,454 canonical trades, 5,563 wallets, and 27,209
-wallet-game ledgers. Its [validation evidence](reports/wnba_2025_validation.json)
-passes all 20 local, workbook, external, and on-chain checks.
-
-The artifacts reconcile internally across the manifest, Parquet, DuckDB, CSV,
-and Excel layers. One follow-up remains before calling the capture complete
-through every possible market-closure timestamp: an independent raw-archive
-comparison found a collection-window difference involving `endDate` versus
-`closedTime`. See the [audit report](docs/audit.md).
+NFL 2025 and WNBA 2025–2026 remain registered as existing datasets. Their
+artifacts reconcile across the manifest, Parquet, DuckDB, CSV, and Excel
+layers, with the current WNBA 2026 validation regenerated using the same
+memory-safe reconciliation checks as the new datasets.
 
 ## Repository layout
 
@@ -91,15 +93,20 @@ PYTHONPATH=/usr/lib/python3/dist-packages \
 ```
 
 The DuckDB build reads cached Parquet only. The generated workbook is written
-to `reports/generated/nfl_2025_moneyline_picks.xlsx` and is intentionally not
-committed.
+to `reports/generated/nfl_2025_moneyline_picks.xlsx`. It stays out of Git
+history and, when publication is enabled, is mirrored to the stable
+`generated-workbooks` GitHub Release.
 
-## Nav-backed WNBA 2026 moneyline experiment
+## Nav-backed sport/year moneyline experiments
 
-The WNBA collector fetches both closed and open Gamma event views for series
-10105, keeps the regular-season date window, and selects only nested moneyline
-markets. Unresolved markets are refreshed through the capture time and are
-marked to market rather than settled.
+The reusable collector fetches both closed and open Gamma event views for each
+configured series, keeps its inclusive event-date window, and selects only
+full-game moneyline markets. Unresolved markets are refreshed through the
+capture time and are marked to market rather than settled. The control panel
+uses the same command sequence for every dataset; only the selector, paths,
+series, date window, and worker count change.
+
+For example, this is the WNBA 2026 shape:
 
     .venv-nav/bin/python scripts/fetch_sports_events.py \
       --series-id 10105 \
@@ -123,7 +130,8 @@ marked to market rather than settled.
       --db data/experiments/nav_wnba_2026_moneyline/silver/wnba_2026_moneyline.duckdb
 
     .venv-nav/bin/python scripts/analyze_sports_moneyline.py \
-      --experiment-dir data/experiments/nav_wnba_2026_moneyline
+      --experiment-dir data/experiments/nav_wnba_2026_moneyline \
+      --report reports/wnba_2026_moneyline.md
 
     .venv-nav/bin/python scripts/export_sports_moneyline_excel.py \
       --experiment-dir data/experiments/nav_wnba_2026_moneyline \
@@ -135,12 +143,23 @@ marked to market rather than settled.
       --workbook reports/generated/wnba_2026_moneyline_picks.xlsx \
       --output reports/wnba_2026_validation.json
 
+The same commands are parameterized for `nba_2025`, `mlb_2025`, `mlb_2026`,
+`nhl_2025`, `ncaaf_2025`, and `ncaab_2025` by the control-panel registry. The
+NCAAB run also passes `--allow-untagged-binary` because those legacy CBB
+markets do not carry the newer `sportsMarketType=moneyline` tag; the validator
+keeps that exception explicit.
+
 ## Data layers in one sentence each
 
 - **Raw:** the original JSON/GZIP API responses, preserved for reproducibility.
 - **Bronze:** normalized, columnar Parquet trade and market snapshots.
 - **Silver:** DuckDB tables for markets, trades, wallet/game ledgers, and metadata.
-- **Reports:** rankings, candidate filters, audit notes, and generated workbook.
+- **Reports:** rankings, candidate filters, validation evidence, audit notes, and generated workbook.
+
+For very large seasons, the complete candidate CSVs and ledger sheets remain
+available in the local cache. The wide Excel matrix is intentionally limited
+to the top 500 candidates so the workbook stays practical to open in desktop
+Excel; the Read Me sheet records that scope.
 
 The replay accounting is:
 

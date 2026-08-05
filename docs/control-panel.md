@@ -1,9 +1,16 @@
 # Control panel
 
-The repository includes a responsive web workspace for the refreshable WNBA
-2025, WNBA 2026, and NFL 2025 full-game moneyline datasets. The frontend uses the shadcn
+The repository includes a responsive web workspace for the refreshable NFL
+2025, WNBA 2025–2026, NBA 2025, MLB 2025–2026, NHL 2025, NCAAF 2025, and NCAAB
+2025 full-game moneyline datasets. The frontend uses the shadcn
 design system, Radix primitives, Tailwind CSS, Inter, and Lucide icons. The
 Python controller runs beside the local Parquet and DuckDB files.
+
+Each dataset is isolated by its own event snapshot, Parquet experiment
+directory, DuckDB file, validation JSON, workbook, and scheduler record. The
+NCAAB 2025 selector includes a visible limited-coverage warning because the
+current official source contains only 255 legacy CBB markets from February
+8–12, 2025.
 
 The interface is grouped by intent:
 
@@ -19,6 +26,12 @@ The interface is grouped by intent:
   validation evidence.
 - **Run history** exposes step-level outcomes, publication details, and
   downloadable structured logs.
+
+The refresh page's **Dataset schedules** table is the source of truth for
+automation: every sport/year has its own enabled state, cadence, validation
+depth, publication preference, next run, latest run, and data-health status.
+Changing the selected dataset only changes the editor below the table; it does
+not silently change another sport's schedule.
 
 ## Start it
 
@@ -46,7 +59,8 @@ runbook:
 4. Recalculate wallet/game ledgers and the 5+ / 10+ game candidate CSVs.
 5. Export the profile-hyperlinked Excel workbook.
 6. Run local validation, or full external checks when selected.
-7. Optionally commit and push the workbook, Markdown report, and validation JSON.
+7. Optionally upload the workbook to the stable GitHub Release and commit the
+   Markdown report and validation JSON.
 
 Settled markets are reused by the Nav adapter. Open, live, and unresolved
 markets are refreshed through the current capture time.
@@ -90,13 +104,15 @@ persistence.
 
 Auto-push is deliberately narrow and guarded:
 
-- only the selected workbook, report, and validation JSON are staged;
+- only the selected Markdown report and validation JSON are staged in Git;
+- the generated workbook is uploaded to the stable `generated-workbooks`
+  GitHub Release, so large files and frequent refreshes do not bloat Git history;
 - a pre-existing staged change stops the job instead of being included silently;
 - the configured push branch must match the checked-out branch;
 - the current local Git credential is used; no token is stored in the UI or in
   the repository; and
-- the status page builds the raw GitHub download URL from the repository and
-  branch, so the latest published Excel link is always visible.
+- the status page builds a stable GitHub Release download URL, so each dataset's
+  latest published Excel link remains constant when the asset is replaced.
 
 The controller should remain localhost-only unless it is placed behind a
 protected reverse proxy. It can be bound to another interface with `--host`,

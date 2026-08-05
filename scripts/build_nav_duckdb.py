@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,8 +54,13 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
     trade_glob = sql_path(trade_dir / "*.parquet")
     market_file = sql_path(market_path)
     conn = duckdb.connect(str(temporary_path))
+    spill_dir = db_path.parent / ".duckdb_build_tmp"
+    spill_dir.mkdir(parents=True, exist_ok=True)
     try:
-        conn.execute("PRAGMA threads=4")
+        conn.execute("PRAGMA memory_limit='2GB'")
+        conn.execute("PRAGMA threads=2")
+        conn.execute("PRAGMA preserve_insertion_order=false")
+        conn.execute(f"PRAGMA temp_directory='{sql_path(spill_dir)}'")
         market_columns = {
             row[0]
             for row in conn.execute(
@@ -329,6 +335,7 @@ def build_database(experiment_dir: Path, db_path: Path) -> dict[str, int | str]:
     finally:
         conn.close()
     os.replace(temporary_path, db_path)
+    shutil.rmtree(spill_dir, ignore_errors=True)
     return counts
 
 

@@ -20,15 +20,10 @@ data/experiments/
 results/
 *.duckdb
 
-# Generated reports stay local; commit the Markdown methodology/report notes.
+# Generated workbooks stay local and are mirrored as GitHub Release assets.
+# Commit the small Markdown methodology notes and validation JSON instead.
 reports/generated/
 reports/*.xlsx
-
-# The reviewed NFL moneyline workbook is explicitly published with the repo.
-!reports/generated/
-!reports/generated/nfl_2025_moneyline_picks.xlsx
-!reports/generated/wnba_2025_moneyline_picks.xlsx
-!reports/generated/wnba_2026_moneyline_picks.xlsx
 
 # Local control-panel runtime state and frontend build output.
 data/control_panel/

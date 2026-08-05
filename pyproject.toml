@@ -25,6 +25,7 @@ nav = [
 ]
 excel = [
     "openpyxl>=3.1",
+    "XlsxWriter>=3.2",
 ]
 
 [project.scripts]

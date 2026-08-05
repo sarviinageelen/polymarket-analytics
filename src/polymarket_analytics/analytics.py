@@ -59,7 +59,12 @@ def _open(path: Path) -> duckdb.DuckDBPyConnection:
     if not path.exists():
         raise FileNotFoundError(f"DuckDB snapshot not found: {path}")
     connection = duckdb.connect(str(path), read_only=True)
-    connection.execute("PRAGMA threads=4")
+    spill_path = path.parent / ".duckdb_ui_tmp"
+    spill_path.mkdir(parents=True, exist_ok=True)
+    connection.execute("PRAGMA memory_limit='768MB'")
+    connection.execute("PRAGMA threads=2")
+    connection.execute("PRAGMA preserve_insertion_order=false")
+    connection.execute(f"PRAGMA temp_directory='{str(spill_path).replace(chr(39), chr(39) * 2)}'")
     return connection
 
 

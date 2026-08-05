@@ -243,7 +243,19 @@ def normalize_market(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def load_snapshot(experiment_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+def load_snapshot(
+    experiment_dir: Path,
+    wallets: set[str] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Load markets and, when requested, only the ledgers needed for the workbook.
+
+    Large sport seasons can contain hundreds of thousands of wallet/game
+    ledgers. Loading the complete ledger table and then discarding almost all
+    of it for the 5+/10+ candidate views needlessly multiplies memory use.
+    Passing a wallet set pushes that filter into DuckDB before Python creates
+    row dictionaries.
+    """
+
     db_candidates = sorted((experiment_dir / "silver").glob("*.duckdb"))
     if not db_candidates:
         raise FileNotFoundError(f"no DuckDB found under {experiment_dir / 'silver'}")
@@ -254,9 +266,26 @@ def load_snapshot(experiment_dir: Path) -> tuple[dict[str, Any], list[dict[str, 
         markets = [normalize_market(row) for row in row_dicts(conn.execute(
             "SELECT * FROM market_dim ORDER BY event_date, market_start_ts, event_id"
         ))]
-        ledgers = row_dicts(conn.execute(
-            "SELECT * FROM wallet_game_ledger ORDER BY event_date, condition_id, wallet"
-        ))
+        if wallets is None:
+            ledgers = row_dicts(conn.execute(
+                "SELECT * FROM wallet_game_ledger ORDER BY event_date, condition_id, wallet"
+            ))
+        elif wallets:
+            conn.execute("CREATE TEMP TABLE candidate_workbook_wallets(wallet VARCHAR)")
+            conn.executemany(
+                "INSERT INTO candidate_workbook_wallets VALUES (?)",
+                [(wallet,) for wallet in sorted(wallets)],
+            )
+            ledgers = row_dicts(conn.execute(
+                """
+                SELECT l.*
+                FROM wallet_game_ledger l
+                JOIN candidate_workbook_wallets w USING (wallet)
+                ORDER BY l.event_date, l.condition_id, l.wallet
+                """
+            ))
+        else:
+            ledgers = []
         pipeline_metadata = {
             row[0]: row[1]
             for row in conn.execute("SELECT key, value FROM pipeline_metadata").fetchall()
@@ -696,6 +725,288 @@ def write_matrix_sheet(
         ws.column_dimensions[get_column_letter(column)].width = 15
 
 
+def write_streaming_workbook(
+    output: Path,
+    manifest: dict[str, Any],
+    games: list[dict[str, Any]],
+    candidates_5: list[dict[str, Any]],
+    candidates_10: list[dict[str, Any]],
+    rows_5: list[dict[str, Any]],
+    rows_10: list[dict[str, Any]],
+    open_rows: list[dict[str, Any]],
+    odds: dict[str, Any],
+) -> None:
+    """Write very wide seasons without retaining millions of cells in RAM.
+
+    openpyxl's editable workbook model is convenient for ordinary seasons but
+    keeps every styled cell in memory. NBA-sized candidate matrices can exceed
+    the VPS memory ceiling even though the underlying DuckDB snapshot is
+    healthy. XlsxWriter's constant-memory mode writes rows directly to the
+    XLSX package while retaining the same workbook views and pick semantics.
+    """
+
+    try:
+        import xlsxwriter
+    except ImportError as exc:  # pragma: no cover - exercised on fresh installs
+        raise RuntimeError("Large workbook export requires XlsxWriter; install the excel dependencies") from exc
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    workbook = xlsxwriter.Workbook(str(output), {"constant_memory": True})
+    workbook.set_properties({
+        "title": f"{manifest.get('season', 'Sports')} Polymarket moneyline analysis",
+        "subject": "Cached Polymarket moneyline data and bettor analysis",
+        "author": "Polymarket Analytics",
+    })
+    fmt = {
+        "title": workbook.add_format({"bold": True, "font_size": 16, "font_color": "#FFFFFF", "bg_color": "#0F172A", "border": 1, "border_color": "#0F172A"}),
+        "subtitle": workbook.add_format({"italic": True, "font_color": "#475569", "text_wrap": True, "valign": "top"}),
+        "label": workbook.add_format({"bold": True, "font_color": "#0F172A", "bg_color": "#E2E8F0", "border": 1, "border_color": "#CBD5E1"}),
+        "header": workbook.add_format({"bold": True, "font_color": "#0F172A", "bg_color": "#E2E8F0", "border": 1, "border_color": "#CBD5E1", "text_wrap": True, "valign": "vcenter"}),
+        "header_dark": workbook.add_format({"bold": True, "font_color": "#FFFFFF", "bg_color": "#0F172A", "border": 1, "border_color": "#0F172A", "text_wrap": True, "valign": "vcenter"}),
+        "text": workbook.add_format({"border": 1, "border_color": "#E2E8F0", "valign": "top"}),
+        "center": workbook.add_format({"border": 1, "border_color": "#E2E8F0", "align": "center", "valign": "vcenter"}),
+        "date": workbook.add_format({"border": 1, "border_color": "#E2E8F0", "num_format": "yyyy-mm-dd", "align": "center"}),
+        "number": workbook.add_format({"border": 1, "border_color": "#E2E8F0", "num_format": "0.00"}),
+        "percent": workbook.add_format({"border": 1, "border_color": "#E2E8F0", "num_format": "0.00%"}),
+        "money": workbook.add_format({"border": 1, "border_color": "#E2E8F0", "num_format": "$#,##0.00;[Red]-$#,##0.00"}),
+        "link": workbook.add_format({"font_color": "#0563C1", "underline": True, "border": 1, "border_color": "#E2E8F0"}),
+        "green": workbook.add_format({"font_color": "#166534", "bg_color": "#DCFCE7", "border": 1, "border_color": "#BBF7D0", "align": "center", "valign": "vcenter"}),
+        "red": workbook.add_format({"font_color": "#991B1B", "bg_color": "#FEE2E2", "border": 1, "border_color": "#FECACA", "align": "center", "valign": "vcenter"}),
+        "yellow": workbook.add_format({"font_color": "#92400E", "bg_color": "#FEF3C7", "border": 1, "border_color": "#FDE68A", "align": "center", "valign": "vcenter"}),
+        "blue": workbook.add_format({"font_color": "#0F172A", "bg_color": "#DBEAFE", "border": 1, "border_color": "#BFDBFE", "align": "center", "valign": "vcenter"}),
+        "gray": workbook.add_format({"font_color": "#475569", "bg_color": "#F1F5F9", "border": 1, "border_color": "#E2E8F0", "align": "center", "valign": "vcenter"}),
+        "marker": workbook.add_format({"bold": True, "font_size": 14, "font_color": "#92400E", "bg_color": "#FEF3C7", "border": 1, "border_color": "#FDE68A", "align": "center"}),
+    }
+
+    def value_format(header: str, value: Any) -> Any:
+        if value is None:
+            return fmt["text"]
+        if header in {"Win %", "ROI", "Actual win %", "Avg implied %", "Favorite win %", "Underdog win %", "Home win %", "Away win %"}:
+            return fmt["percent"]
+        if header in {"Realized P&L", "Mark-to-Market P&L", "Open Exposure", "Buy Cost", "Sell Proceeds", "Settlement Value", "Profit"}:
+            return fmt["money"]
+        if header in {"Event Date"}:
+            return fmt["date"]
+        if header in {"Current Price A", "Current Price B", "Final Price A", "Final Price B", "Favorite price", "Delta (pp)"}:
+            return fmt["number"]
+        return fmt["text"]
+
+    def write_value(worksheet: Any, row: int, column: int, header: str, value: Any, cell_format: Any | None = None) -> None:
+        target_format = cell_format or value_format(header, value)
+        if value is None:
+            worksheet.write_blank(row, column, None, target_format)
+        elif isinstance(value, bool):
+            worksheet.write_boolean(row, column, value, target_format)
+        elif isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+            worksheet.write_number(row, column, float(value), target_format)
+        else:
+            worksheet.write(row, column, str(value), target_format)
+
+    def write_profile(worksheet: Any, row: int, column: int, text: Any, wallet: str) -> None:
+        wallet = str(wallet or "").lower()
+        if wallet:
+            worksheet.write_url(row, column, f"{PROFILE_BASE_URL}{wallet}", fmt["link"], str(text or wallet))
+        else:
+            worksheet.write(row, column, str(text or ""), fmt["text"])
+
+    def title(worksheet: Any, text: str, subtitle: str, end_column: int) -> None:
+        worksheet.merge_range(0, 0, 0, end_column, text, fmt["title"])
+        worksheet.merge_range(1, 0, 1, end_column, subtitle, fmt["subtitle"])
+        worksheet.set_row(0, 26)
+        worksheet.set_row(1, 34)
+
+    season = str(manifest.get("season") or "Selected season")
+    event_count = len(games)
+    matrix_preview_limit = 500
+    matrix_candidates_5 = candidates_5[:matrix_preview_limit]
+    matrix_candidates_10 = candidates_10[:matrix_preview_limit]
+
+    # Read Me
+    worksheet = workbook.add_worksheet("Read Me")
+    worksheet.set_column("A:A", 29)
+    worksheet.set_column("B:B", 115)
+    title(worksheet, f"{season} Polymarket Full-Game Moneyline Picks", "Streaming export for large seasons; cached API, Parquet, DuckDB, validation, and analysis remain local artifacts.", 1)
+    readme_rows = [
+        ("Scope", f"{len(games)} full-game moneyline markets in the configured local snapshot."),
+        ("Snapshot", f"Generated/fetched at {manifest.get('generated_at_utc', 'timestamp not recorded')}; this workbook is a point-in-time local view."),
+        ("Source", f"Nav1212/PolyMarketAnalytics ETL components, pinned to commit {manifest.get('source_revision', 'not recorded')}."),
+        ("5+ view", f"{len(candidates_5)} bettors with at least 5 settled games, at least 70% settled non-flat win rate, and at least $1,000 settled BUY cost."),
+        ("10+ view", f"{len(candidates_10)} bettors with at least 10 settled games, at least 70% settled non-flat win rate, and at least $1,000 settled BUY cost."),
+        ("Matrix scope", f"The wide Picks Matrix sheets show the top {matrix_preview_limit} candidates for workbook usability. Complete candidate lists and all underlying rows remain in the local CSV, Parquet, and DuckDB artifacts."),
+        ("Primary Pick", "Outcome with the largest cumulative BUY notional in that bettor/game ledger. Both outcomes = Both / hedged; no BUY rows = Sell-only."),
+        ("Win %", "Settled profitable wallet × game ledgers divided by settled non-flat ledgers. Open/live/upcoming games are excluded."),
+        ("Open Exposure", "Current mark-to-market value of unresolved positions using the latest cached Gamma outcome prices; it is not realized profit."),
+        ("Profiles", "Bettor and Wallet cells are clickable hyperlinks to Polymarket profiles."),
+        ("Odds vs results", "The Odds vs Results sheet compares the last local trade price at or before cached kickoff with resolved outcomes."),
+    ]
+    for index, (label, text_value) in enumerate(readme_rows, start=3):
+        worksheet.write(index, 0, label, fmt["label"])
+        worksheet.write(index, 1, text_value, fmt["text"])
+        worksheet.set_row(index, 30 if len(text_value) > 110 else 20)
+    worksheet.write_url(14, 1, "https://github.com/Nav1212/PolyMarketAnalytics", fmt["link"], "https://github.com/Nav1212/PolyMarketAnalytics")
+    worksheet.write_url(15, 1, "https://docs.polymarket.com/api-reference/core/get-trades-for-a-user-or-markets", fmt["link"], "Polymarket trade API documentation")
+    worksheet.hide_gridlines(2)
+
+    # Odds vs Results
+    worksheet = workbook.add_worksheet("Odds vs Results")
+    title(worksheet, f"{season} Pre-match odds vs results", "The price is the latest local trade-price proxy at or before cached kickoff. It is not a sportsbook closing line.", 14)
+    bands = odds.get("bands", [])
+    worksheet.write(3, 0, "Favorite price bands", fmt["header_dark"])
+    band_headers = ["Price band", "Games", "Favorite wins", "Favorite losses", "Actual win %", "Avg implied %", "Delta (pp)"]
+    for column, header in enumerate(band_headers):
+        worksheet.write(4, column, header, fmt["header"])
+    for row_number, row in enumerate(bands, start=5):
+        values = [row.get("band"), row.get("games"), row.get("wins"), row.get("losses"), row.get("win_rate_pct"), row.get("avg_implied_pct"), row.get("calibration_delta_pct")]
+        for column, (header, value) in enumerate(zip(band_headers, values)):
+            write_value(worksheet, row_number, column, header, value, fmt["green"] if header == "Delta (pp)" and value is not None and float(value) >= 0 else fmt["red"] if header == "Delta (pp)" and value is not None else None)
+    team_rows = odds.get("team_rows", [])
+    team_start = 7 + len(bands)
+    worksheet.write(team_start, 0, "Team performance", fmt["header_dark"])
+    team_headers = ["Team", "Games", "Wins", "Losses", "Win %", "Avg implied %", "Delta (pp)", "Favorite W-L", "Favorite win %", "Underdog W-L", "Underdog win %", "Home W-L", "Home win %", "Away W-L", "Away win %"]
+    for column, header in enumerate(team_headers):
+        worksheet.write(team_start + 1, column, header, fmt["header"])
+    for row_number, row in enumerate(team_rows, start=team_start + 2):
+        segments = {name: row.get(name) or {} for name in ("favorite", "underdog", "home", "away")}
+        values = [row.get("team"), row.get("games"), row.get("wins"), row.get("losses"), row.get("win_rate_pct"), row.get("avg_implied_pct"), row.get("calibration_delta_pct"), _odds_segment_text(segments["favorite"]), segments["favorite"].get("win_rate_pct"), _odds_segment_text(segments["underdog"]), segments["underdog"].get("win_rate_pct"), _odds_segment_text(segments["home"]), segments["home"].get("win_rate_pct"), _odds_segment_text(segments["away"]), segments["away"].get("win_rate_pct")]
+        for column, (header, value) in enumerate(zip(team_headers, values)):
+            write_value(worksheet, row_number, column, header, value, fmt["green"] if header == "Delta (pp)" and value is not None and float(value) >= 0 else fmt["red"] if header == "Delta (pp)" and value is not None else None)
+    worksheet.set_column(0, 0, 18)
+    worksheet.set_column(1, 14, 16)
+    worksheet.hide_gridlines(2)
+
+    # Games
+    worksheet = workbook.add_worksheet("Games")
+    game_headers = ["Game #", "Status", "Event Date", "Team A", "Team B", "Matchup", "Resolution", "Winner", "Current Price A", "Current Price B", "Final Price A", "Final Price B", "Market Closed", "Event Closed", "Event Live", "Event Ended", "Condition ID", "Event ID", "Event Slug"]
+    title(worksheet, f"{season} games", "Cached full-game moneyline market metadata and resolution state.", len(game_headers) - 1)
+    for column, header in enumerate(game_headers):
+        worksheet.write(3, column, header, fmt["header"])
+    for row_number, game in enumerate(games, start=4):
+        values = [row_number - 3, status_label(game.get("status")), game.get("event_date"), game.get("team_a"), game.get("team_b"), f"{game.get('team_a')} vs {game.get('team_b')}", str(game.get("resolution") or "").title(), game.get("winner"), game.get("current_price_a"), game.get("current_price_b"), game.get("final_price_a"), game.get("final_price_b"), game.get("market_closed"), game.get("event_closed"), game.get("event_live"), game.get("event_ended"), game.get("condition_id"), game.get("event_id"), game.get("event_slug")]
+        for column, (header, value) in enumerate(zip(game_headers, values)):
+            write_value(worksheet, row_number, column, header, value)
+    worksheet.autofilter(3, 0, 3 + len(games), len(game_headers) - 1)
+    worksheet.freeze_panes(4, 0)
+    worksheet.set_column(0, 0, 9)
+    worksheet.set_column(1, 1, 14)
+    worksheet.set_column(2, 2, 13)
+    worksheet.set_column(3, 5, 24)
+    worksheet.set_column(6, 7, 16)
+    worksheet.set_column(8, 11, 14)
+    worksheet.set_column(16, 16, 68)
+    worksheet.hide_gridlines(2)
+
+    def stream_matrix(name: str, candidates: list[dict[str, Any]], ledger_rows: list[dict[str, Any]], description: str) -> None:
+        worksheet = workbook.add_worksheet(name)
+        static_headers = ["User", "Games", "Wins", "Losses", "Win %", "Realized P&L"]
+        start_column = len(static_headers)
+        end_column = start_column + len(games) - 1
+        title(worksheet, f"{season} Picks Matrix — {description}", "Each game is a column. X in row 3 marks the last closed game; open/live/upcoming cells are kept visible but excluded from scoring.", end_column)
+        for column, header in enumerate(static_headers):
+            worksheet.write(6, column, header, fmt["header"])
+        closed_indexes = [index for index, game in enumerate(games) if game.get("status") == "closed" or game.get("resolution") in {"resolved", "tie"}]
+        for index, game in enumerate(games):
+            column = start_column + index
+            worksheet.write(3, column, status_label(game.get("status")), fmt["header_dark"])
+            worksheet.write(4, column, game.get("event_date"), fmt["date"])
+            worksheet.write(5, column, f"{game.get('team_a')} vs {game.get('team_b')}", fmt["header"])
+            worksheet.write(6, column, "Pick / State", fmt["header"])
+        if closed_indexes:
+            worksheet.write(2, start_column + max(closed_indexes), "X", fmt["marker"])
+        ledger_by_key = {(str(row["Wallet"]).lower(), str(row["Condition ID"])): row for row in ledger_rows}
+        for row_number, raw_candidate in enumerate(candidates, start=7):
+            candidate = candidate_summary(raw_candidate)
+            write_profile(worksheet, row_number, 0, candidate["display_name"], candidate["wallet"])
+            write_value(worksheet, row_number, 1, "Games", candidate["settled_markets"], fmt["center"])
+            write_value(worksheet, row_number, 2, "Wins", candidate["wins"], fmt["center"])
+            write_value(worksheet, row_number, 3, "Losses", candidate["losses"], fmt["center"])
+            write_value(worksheet, row_number, 4, "Win %", candidate["win_rate"], fmt["percent"])
+            write_value(worksheet, row_number, 5, "Realized P&L", candidate["total_pnl"], fmt["money"])
+            for game_index, game in enumerate(games):
+                row = ledger_by_key.get((candidate["wallet"], str(game["condition_id"])))
+                if row is None:
+                    worksheet.write_blank(row_number, start_column + game_index, None, fmt["gray"])
+                    continue
+                pick = row.get("Primary Pick")
+                if game.get("resolution") == "tie" or pick == "Both / hedged":
+                    cell_format = fmt["yellow"]
+                elif game.get("resolution") not in {"resolved", "tie"}:
+                    cell_format = fmt["blue"]
+                elif row.get("Pick Correct?") == "Yes":
+                    cell_format = fmt["green"]
+                elif row.get("Pick Correct?") == "No":
+                    cell_format = fmt["red"]
+                else:
+                    cell_format = fmt["gray"]
+                worksheet.write(row_number, start_column + game_index, str(pick or ""), cell_format)
+        end_row = 6 + len(candidates)
+        worksheet.autofilter(6, 0, end_row, end_column)
+        worksheet.freeze_panes(7, start_column)
+        worksheet.set_column(0, 0, 24)
+        worksheet.set_column(1, 5, 12)
+        worksheet.set_column(start_column, end_column, 15)
+        worksheet.set_row(3, 23)
+        worksheet.set_row(4, 22)
+        worksheet.set_row(5, 42)
+        worksheet.hide_gridlines(2)
+
+    stream_matrix("Picks Matrix (10+)", matrix_candidates_10, rows_10, f"Top {len(matrix_candidates_10)} of ≥10 settled games / ≥70% win rate")
+    stream_matrix("Picks Matrix (5+)", matrix_candidates_5, rows_5, f"Top {len(matrix_candidates_5)} of ≥5 settled games / ≥70% win rate")
+
+    def stream_ledger(name: str, rows: list[dict[str, Any]], description: str) -> None:
+        worksheet = workbook.add_worksheet(name)
+        headers = list(rows[0].keys()) if rows else ["Status", "Event Date", "Matchup", "Bettor", "Wallet", "Ledger Result"]
+        title(worksheet, description, "One row per eligible bettor/game. Realized P&L is populated only for resolved/tie markets; open rows are unsettled.", len(headers) - 1)
+        for column, header in enumerate(headers):
+            worksheet.write(3, column, header, fmt["header"])
+        linked_wallets: set[str] = set()
+        for row_number, row in enumerate(rows, start=4):
+            for column, header in enumerate(headers):
+                value = row.get(header)
+                wallet = str(row.get("Wallet") or "").lower()
+                if header == "Bettor" and wallet and wallet not in linked_wallets:
+                    write_profile(worksheet, row_number, column, value, str(row.get("Wallet") or ""))
+                    linked_wallets.add(wallet)
+                else:
+                    write_value(worksheet, row_number, column, header, value)
+        worksheet.autofilter(3, 0, 3 + len(rows), len(headers) - 1)
+        worksheet.freeze_panes(4, 0)
+        worksheet.set_column(0, len(headers) - 1, 16)
+        worksheet.set_column(3, 3, 32)
+        worksheet.set_column(4, 4, 45)
+        worksheet.set_column(5, 5, 16)
+        worksheet.hide_gridlines(2)
+
+    stream_ledger("Picks Ledger (10+)", rows_10, "Picks Ledger — ≥10 settled games / ≥70% win rate")
+    stream_ledger("Picks Ledger (5+)", rows_5, "Picks Ledger — ≥5 settled games / ≥70% win rate")
+    stream_ledger("Open Exposure", open_rows, "Open / Live / Upcoming Exposure")
+
+    def stream_summary(name: str, rows: list[dict[str, Any]], description: str) -> None:
+        worksheet = workbook.add_worksheet(name)
+        headers = ["Bettor", "Wallet", "Pseudonym", "Markets", "Settled Games", "Open / Upcoming", "Wins", "Losses", "Flats", "Win %", "Realized P&L", "Mark-to-Market P&L", "Open Exposure", "Settled Buy Cost", "ROI", "Trade Count"]
+        title(worksheet, f"Bettor Summary — {description}", "Win % uses settled non-flat games only. Realized P&L excludes open/live/upcoming markets.", len(headers) - 1)
+        for column, header in enumerate(headers):
+            worksheet.write(3, column, header, fmt["header"])
+        for row_number, raw_row in enumerate(rows, start=4):
+            row = candidate_summary(raw_row)
+            values = [row["display_name"], row["wallet"], row["pseudonym"], row["markets"], row["settled_markets"], row["open_markets"], row["wins"], row["losses"], row["flats"], row["win_rate"], row["total_pnl"], row["mark_to_market_pnl"], row["open_exposure"], row["settled_buy_cost"], row["roi"], row["trade_count"]]
+            for column, (header, value) in enumerate(zip(headers, values)):
+                if header in {"Bettor", "Wallet"}:
+                    write_profile(worksheet, row_number, column, value, row["wallet"])
+                else:
+                    write_value(worksheet, row_number, column, header, value)
+        worksheet.autofilter(3, 0, 3 + len(rows), len(headers) - 1)
+        worksheet.freeze_panes(4, 0)
+        worksheet.set_column(0, 0, 32)
+        worksheet.set_column(1, 1, 45)
+        worksheet.set_column(2, 2, 25)
+        worksheet.set_column(3, 15, 15)
+        worksheet.hide_gridlines(2)
+
+    stream_summary("Bettor Summary (10+)", candidates_10, "≥10 settled games / ≥70% win rate")
+    stream_summary("Bettor Summary (5+)", candidates_5, "≥5 settled games / ≥70% win rate")
+    workbook.close()
+
+
 def _section_heading(ws: Any, row_number: int, title: str, end_column: int) -> None:
     ws.merge_cells(start_row=row_number, start_column=1, end_row=row_number, end_column=end_column)
     cell = ws.cell(row_number, 1, title)
@@ -847,7 +1158,7 @@ def write_readme(
         ("Market status", f"Closed: {status_counts['closed']}; live: {status_counts['live']}; open: {status_counts['open']}; stale/unresolved: {status_counts['stale_unresolved']}; upcoming: {status_counts['upcoming']}."),
         ("Resolution", f"Resolved: {resolution_counts['resolved']}; tie: {resolution_counts['tie']}; unresolved: {resolution_counts['unresolved']}. Unresolved markets are never treated as losses or wins."),
         ("Source", f"Nav1212/PolyMarketAnalytics ETL components, pinned to commit {manifest.get('source_revision', 'not recorded')}."),
-        ("Local storage", "Raw API event metadata, trade Parquet shards, a market snapshot, DuckDB, CSV analysis outputs, and this workbook are generated locally. Ignored raw/derived files are intentionally not committed to GitHub."),
+        ("Local storage", "Raw API event metadata, trade Parquet shards, a market snapshot, DuckDB, CSV analysis outputs, and this workbook are generated locally. Raw/derived files stay out of Git; published workbooks are mirrored as GitHub Release assets."),
         ("Refresh", "Refresh metadata first, then rerun the Nav collector and DuckDB build before rerunning analysis/export. New scheduled games and status changes are picked up on refresh."),
         ("5+ view", f"{len(candidate_5)} bettors with at least 5 settled games, at least 70% settled non-flat win rate, and at least $1,000 settled BUY cost."),
         ("10+ view", f"{len(candidate_10)} bettors with at least 10 settled games, at least 70% settled non-flat win rate, and at least $1,000 settled BUY cost."),
@@ -885,13 +1196,16 @@ def main() -> int:
     experiment_dir = Path(args.experiment_dir)
     output = Path(args.output)
 
-    manifest, games, all_ledgers = load_snapshot(experiment_dir)
+    # Read the compact market dimension first. Candidate wallets are loaded
+    # from CSV, then only their ledgers are fetched from DuckDB.
+    manifest, games, _ = load_snapshot(experiment_dir, wallets=set())
     games_by_condition = {game["condition_id"]: game for game in games}
     candidates_5 = load_candidates(experiment_dir, "bettor_candidates_5games_70pct.csv")
     candidates_10 = load_candidates(experiment_dir, "bettor_candidates_10games_70pct.csv")
     candidate_5_summaries = {row["wallet"]: candidate_summary(row) for row in candidates_5}
     candidate_10_summaries = {row["wallet"]: candidate_summary(row) for row in candidates_10}
     union_summaries = {**candidate_5_summaries, **candidate_10_summaries}
+    _, _, all_ledgers = load_snapshot(experiment_dir, wallets=set(union_summaries))
     trade_stats = load_trade_stats(experiment_dir, set(union_summaries))
     all_ledger_rows = build_ledger_rows(all_ledgers, games_by_condition, union_summaries, trade_stats)
     rows_5 = [row for row in all_ledger_rows if row["Wallet"] in candidate_5_summaries]
@@ -901,6 +1215,35 @@ def main() -> int:
     odds = odds_performance(db_candidates[0], infer_events_path(experiment_dir)) if db_candidates else {"summary": {}, "bands": [], "team_rows": [], "games": []}
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    # A normal openpyxl workbook retains every cell object. Switch to the
+    # constant-memory writer when a wide candidate matrix would otherwise
+    # create millions of styled cells in the VPS process.
+    matrix_cells = max(len(candidates_5), len(candidates_10)) * len(games)
+    if matrix_cells > 2_000_000:
+        write_streaming_workbook(
+            output,
+            manifest,
+            games,
+            candidates_5,
+            candidates_10,
+            rows_5,
+            rows_10,
+            open_rows,
+            odds,
+        )
+        print(json.dumps({
+            "output": str(output),
+            "games": len(games),
+            "candidate_5": len(candidates_5),
+            "candidate_10": len(candidates_10),
+            "ledgers_5": len(rows_5),
+            "ledgers_10": len(rows_10),
+            "open_exposure_rows": len(open_rows),
+            "writer": "xlsxwriter_constant_memory",
+            "matrix_cells": matrix_cells,
+            "sheets": ["Read Me", "Odds vs Results", "Games", "Picks Matrix (10+)", "Picks Matrix (5+)", "Picks Ledger (10+)", "Picks Ledger (5+)", "Open Exposure", "Bettor Summary (10+)", "Bettor Summary (5+)"],
+        }, indent=2))
+        return 0
     workbook = Workbook()
     scope = f"Configured season window: {manifest.get('start_date')} through {manifest.get('end_date')}; future games appear as they are listed by the API."
     write_readme(workbook, manifest, games, candidates_5, candidates_10)

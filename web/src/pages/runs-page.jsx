@@ -60,7 +60,17 @@ import { cn } from "@/lib/utils"
 const ALL_FILTER = "__all__"
 
 function sportLabel(value) {
-  const labels = { wnba_2026: "WNBA 2026", wnba_2025: "WNBA 2025", nfl_2025: "NFL 2025" }
+  const labels = {
+    wnba_2026: "WNBA 2026",
+    wnba_2025: "WNBA 2025",
+    nfl_2025: "NFL 2025",
+    nba_2025: "NBA 2025",
+    mlb_2025: "MLB 2025",
+    mlb_2026: "MLB 2026",
+    nhl_2025: "NHL 2025",
+    ncaaf_2025: "NCAAF 2025",
+    ncaab_2025: "NCAAB 2025",
+  }
   if (!value) return "Unknown dataset"
   return labels[value] || String(value).replaceAll("_", " ").toUpperCase()
 }
