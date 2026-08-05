@@ -1,15 +1,15 @@
 {
-  "generated_at_utc": "2026-08-05T02:37:55.773301+00:00",
+  "generated_at_utc": "2026-08-05T03:38:47.751067+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-05T02:37:17.694076+00:00",
+      "generated_at_utc": "2026-08-05T03:38:07.690002+00:00",
       "market_count": 266,
-      "trade_count": 842494,
-      "ledger_count": 104074,
+      "trade_count": 844718,
+      "ledger_count": 104221,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -22,7 +22,7 @@
     "ledger_result_counts": {
       "flat": 239,
       "loss": 45778,
-      "unsettled": 677,
+      "unsettled": 824,
       "win": 57380
     },
     "event_cache_events": 266,
@@ -60,12 +60,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 900728,
-        "parquet_raw_trades": 900728,
-        "manifest_unique_trades": 842494,
-        "parquet_unique_trades": 842494,
-        "duckdb_trades": 842494,
-        "refresh_duplicate_rows": 58234
+        "manifest_raw_trades": 906191,
+        "parquet_raw_trades": 906191,
+        "manifest_unique_trades": 844718,
+        "parquet_unique_trades": 844718,
+        "duckdb_trades": 844718,
+        "refresh_duplicate_rows": 61473
       }
     },
     {
@@ -102,7 +102,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 104074
+        "ledger_rows": 104221
       }
     },
     {
@@ -133,7 +133,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-05T02:37:54.469339+00:00"
+        "capture_time_utc": "2026-08-05T03:38:46.206182+00:00"
       }
     },
     {
@@ -185,7 +185,7 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 28955,
+        "hyperlinks_to_profiles": 28989,
         "sample_profile_url": "https://polymarket.com/profile/0x6e82b93eb57b01a63027bd0c6d2f3f04934a752c",
         "table_counts": {
           "Read Me": 0,
