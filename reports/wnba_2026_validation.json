@@ -1,17 +1,17 @@
 {
-  "generated_at_utc": "2026-08-05T21:17:15.329417+00:00",
+  "generated_at_utc": "2026-08-05T21:23:00.511953+00:00",
   "local": {
     "manifest": {
       "series_id": "10105",
       "season": "WNBA 2026",
       "start_date": "2026-05-08",
       "end_date": "2026-09-24",
-      "generated_at_utc": "2026-08-05T20:50:01.021671+00:00",
+      "generated_at_utc": "2026-08-05T21:22:36.255761+00:00",
       "market_count": 270,
-      "trade_count": 846859,
-      "ledger_count": 104774,
-      "prematch_ledger_count": 40947,
-      "prematch_trade_count": 160262,
+      "trade_count": 846894,
+      "ledger_count": 104789,
+      "prematch_ledger_count": 40962,
+      "prematch_trade_count": 160297,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -23,7 +23,7 @@
     "ledger_result_counts": {
       "flat": 239,
       "loss": 45983,
-      "unsettled": 821,
+      "unsettled": 836,
       "win": 57731
     },
     "event_cache_events": 270,
@@ -61,12 +61,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 946983,
-        "parquet_raw_trades": 946983,
-        "manifest_unique_trades": 846859,
-        "parquet_unique_trades": 846859,
-        "duckdb_trades": 846859,
-        "refresh_duplicate_rows": 100124
+        "manifest_raw_trades": 949561,
+        "parquet_raw_trades": 949561,
+        "manifest_unique_trades": 846894,
+        "parquet_unique_trades": 846894,
+        "duckdb_trades": 846894,
+        "refresh_duplicate_rows": 102667
       }
     },
     {
@@ -103,7 +103,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 104774
+        "ledger_rows": 104789
       }
     },
     {
@@ -134,7 +134,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-05T21:17:14.503074+00:00"
+        "capture_time_utc": "2026-08-05T21:22:59.653971+00:00"
       }
     },
     {
@@ -166,7 +166,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "ledger_rows": 40947,
+        "ledger_rows": 40962,
         "missing_columns": []
       }
     },
@@ -175,10 +175,10 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "trade_fact_rows_before_kickoff": 160262,
-        "ledger_summed_trade_rows": 160262,
-        "source_wallet_game_keys": 40947,
-        "prematch_ledger_rows": 40947,
+        "trade_fact_rows_before_kickoff": 160297,
+        "ledger_summed_trade_rows": 160297,
+        "source_wallet_game_keys": 40962,
+        "prematch_ledger_rows": 40962,
         "duplicate_ledger_keys": 0
       }
     },
@@ -200,7 +200,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 9.549694368615746e-12,
+        "max_cash_flow_residual": 7.275957614183426e-12,
         "max_realized_pnl_residual": 0.0,
         "directional_pick_result_mismatches": 0,
         "unresolved_rows_with_realized_pnl": 0
