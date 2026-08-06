@@ -1,6 +1,6 @@
 # WNBA 2026 Full-Game Moneyline Analysis
 
-Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-06T06:49:28.228184+00:00`.
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-06T07:52:44.439560+00:00`.
 The snapshot uses series `10105`, an inclusive event window of `2026-05-08` through `2026-09-24`, and the market filter `sportsMarketType == moneyline`.
 
 ## Snapshot
@@ -10,10 +10,10 @@ The snapshot uses series `10105`, an inclusive event window of `2026-05-08` thro
 | Moneyline markets | 272 |
 | Resolved markets | 232 |
 | Unresolved markets | 40 |
-| Unique trades | 858,824 |
-| Wallets with trades | 18,680 |
-| Wallet × game ledgers | 106,052 |
-| Pre-match wallet × game ledgers | 41,239 |
+| Unique trades | 858,868 |
+| Wallets with trades | 18,681 |
+| Wallet × game ledgers | 106,059 |
+| Pre-match wallet × game ledgers | 41,246 |
 | Markets with a kickoff timestamp | 272 |
 
 ## Candidate views
