@@ -1,20 +1,20 @@
 # MLB 2026 Full-Game Moneyline Analysis
 
-Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-06T12:02:54.123317+00:00`.
+Generated from the cached Gamma event snapshot and Nav-backed Parquet trade layer at `2026-08-06T13:05:57.224619+00:00`.
 The snapshot uses series `3`, an inclusive event window of `2026-03-01` through `2026-11-01`, and the market filter `sportsMarketType == moneyline`.
 
 ## Snapshot
 
 | Metric | Value |
 | --- | ---: |
-| Moneyline markets | 2,067 |
+| Moneyline markets | 2,082 |
 | Resolved markets | 1,980 |
-| Unresolved markets | 87 |
-| Unique trades | 9,116,488 |
-| Wallets with trades | 106,711 |
-| Wallet × game ledgers | 1,401,757 |
-| Pre-match wallet × game ledgers | 651,113 |
-| Markets with a kickoff timestamp | 2,067 |
+| Unresolved markets | 102 |
+| Unique trades | 9,116,969 |
+| Wallets with trades | 106,721 |
+| Wallet × game ledgers | 1,401,936 |
+| Pre-match wallet × game ledgers | 651,292 |
+| Markets with a kickoff timestamp | 2,082 |
 
 ## Candidate views
 
