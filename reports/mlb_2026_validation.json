@@ -1,31 +1,31 @@
 {
-  "generated_at_utc": "2026-08-06T03:39:47.068262+00:00",
+  "generated_at_utc": "2026-08-06T04:42:50.123363+00:00",
   "local": {
     "manifest": {
       "series_id": "3",
       "season": "MLB 2026",
       "start_date": "2026-03-01",
       "end_date": "2026-11-01",
-      "generated_at_utc": "2026-08-06T03:38:03.729897+00:00",
+      "generated_at_utc": "2026-08-06T04:41:03.147853+00:00",
       "market_count": 2067,
-      "trade_count": 9112251,
-      "ledger_count": 1400551,
-      "prematch_ledger_count": 650074,
-      "prematch_trade_count": 2388872,
+      "trade_count": 9114324,
+      "ledger_count": 1400931,
+      "prematch_ledger_count": 650290,
+      "prematch_trade_count": 2389350,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
-      "closed:resolved": 1963,
+      "closed:resolved": 1965,
       "closed:tie": 14,
-      "live:unresolved": 3,
+      "live:unresolved": 1,
       "open:unresolved": 12,
       "upcoming:unresolved": 75
     },
     "ledger_result_counts": {
-      "flat": 4601,
-      "loss": 635232,
-      "unsettled": 11007,
-      "win": 749711
+      "flat": 4616,
+      "loss": 636005,
+      "unsettled": 9900,
+      "win": 750410
     },
     "event_cache_events": 3479,
     "event_cache_moneyline_markets": 2067
@@ -62,12 +62,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 9823332,
-        "parquet_raw_trades": 9823332,
-        "manifest_unique_trades": 9112251,
-        "parquet_unique_trades": 9112251,
-        "duckdb_trades": 9112251,
-        "refresh_duplicate_rows": 711081
+        "manifest_raw_trades": 9878636,
+        "parquet_raw_trades": 9878636,
+        "manifest_unique_trades": 9114324,
+        "parquet_unique_trades": 9114324,
+        "duckdb_trades": 9114324,
+        "refresh_duplicate_rows": 764312
       }
     },
     {
@@ -104,7 +104,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 1400551
+        "ledger_rows": 1400931
       }
     },
     {
@@ -135,7 +135,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-06T03:39:43.493109+00:00"
+        "capture_time_utc": "2026-08-06T04:42:46.249496+00:00"
       }
     },
     {
@@ -167,7 +167,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "ledger_rows": 650074,
+        "ledger_rows": 650290,
         "missing_columns": []
       }
     },
@@ -176,10 +176,10 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "trade_fact_rows_before_kickoff": 2388872,
-        "ledger_summed_trade_rows": 2388872,
-        "source_wallet_game_keys": 650074,
-        "prematch_ledger_rows": 650074,
+        "trade_fact_rows_before_kickoff": 2389350,
+        "ledger_summed_trade_rows": 2389350,
+        "source_wallet_game_keys": 650290,
+        "prematch_ledger_rows": 650290,
         "duplicate_ledger_keys": 0
       }
     },
@@ -201,7 +201,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 1.2369127944111824e-10,
+        "max_cash_flow_residual": 1.20508047984913e-10,
         "max_realized_pnl_residual": 0.0,
         "directional_pick_result_mismatches": 0,
         "unresolved_rows_with_realized_pnl": 0
@@ -212,10 +212,10 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "5_game_csv": 1132,
-        "5_game_query": 1132,
-        "10_game_csv": 354,
-        "10_game_query": 354
+        "5_game_csv": 1127,
+        "5_game_query": 1127,
+        "10_game_csv": 350,
+        "10_game_query": 350
       }
     },
     {
@@ -245,7 +245,7 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 4932,
+        "hyperlinks_to_profiles": 4898,
         "sample_profile_url": "https://polymarket.com/profile/0x5966db1fe50763c9e3c014d756369bad07e1f804",
         "table_counts": {
           "Read Me": 0,
