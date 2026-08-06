@@ -1,17 +1,17 @@
 {
-  "generated_at_utc": "2026-08-06T05:45:57.517375+00:00",
+  "generated_at_utc": "2026-08-06T06:49:13.435866+00:00",
   "local": {
     "manifest": {
       "series_id": "3",
       "season": "MLB 2026",
       "start_date": "2026-03-01",
       "end_date": "2026-11-01",
-      "generated_at_utc": "2026-08-06T05:44:02.426004+00:00",
+      "generated_at_utc": "2026-08-06T06:47:13.809905+00:00",
       "market_count": 2067,
-      "trade_count": 9114724,
-      "ledger_count": 1401128,
-      "prematch_ledger_count": 650484,
-      "prematch_trade_count": 2389743,
+      "trade_count": 9114898,
+      "ledger_count": 1401204,
+      "prematch_ledger_count": 650560,
+      "prematch_trade_count": 2389917,
       "allow_untagged_binary": false
     },
     "market_status_resolution_counts": {
@@ -24,10 +24,10 @@
     "ledger_result_counts": {
       "flat": 4617,
       "loss": 636278,
-      "unsettled": 9484,
+      "unsettled": 9560,
       "win": 750749
     },
-    "event_cache_events": 3482,
+    "event_cache_events": 3484,
     "event_cache_moneyline_markets": 2067
   },
   "external": {},
@@ -38,7 +38,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "events": 3482,
+        "events": 3484,
         "moneyline_markets": 2067,
         "db_markets": 2067,
         "duplicate_event_ids": 0,
@@ -62,12 +62,12 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "manifest_raw_trades": 9924772,
-        "parquet_raw_trades": 9924772,
-        "manifest_unique_trades": 9114724,
-        "parquet_unique_trades": 9114724,
-        "duckdb_trades": 9114724,
-        "refresh_duplicate_rows": 810048
+        "manifest_raw_trades": 9967916,
+        "parquet_raw_trades": 9967916,
+        "manifest_unique_trades": 9114898,
+        "parquet_unique_trades": 9114898,
+        "duckdb_trades": 9114898,
+        "refresh_duplicate_rows": 853018
       }
     },
     {
@@ -104,7 +104,7 @@
       "severity": "high",
       "evidence": {
         "orphan_trade_rows": 0,
-        "ledger_rows": 1401128
+        "ledger_rows": 1401204
       }
     },
     {
@@ -135,7 +135,7 @@
       "evidence": {
         "future_trade_rows": 0,
         "out_of_window_rows": 0,
-        "capture_time_utc": "2026-08-06T05:45:53.643728+00:00"
+        "capture_time_utc": "2026-08-06T06:49:08.678548+00:00"
       }
     },
     {
@@ -167,7 +167,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "ledger_rows": 650484,
+        "ledger_rows": 650560,
         "missing_columns": []
       }
     },
@@ -176,10 +176,10 @@
       "status": "pass",
       "severity": "critical",
       "evidence": {
-        "trade_fact_rows_before_kickoff": 2389743,
-        "ledger_summed_trade_rows": 2389743,
-        "source_wallet_game_keys": 650484,
-        "prematch_ledger_rows": 650484,
+        "trade_fact_rows_before_kickoff": 2389917,
+        "ledger_summed_trade_rows": 2389917,
+        "source_wallet_game_keys": 650560,
+        "prematch_ledger_rows": 650560,
         "duplicate_ledger_keys": 0
       }
     },
@@ -201,7 +201,7 @@
       "status": "pass",
       "severity": "high",
       "evidence": {
-        "max_cash_flow_residual": 1.0550138540565968e-10,
+        "max_cash_flow_residual": 1.6007106751203537e-10,
         "max_realized_pnl_residual": 0.0,
         "directional_pick_result_mismatches": 0,
         "unresolved_rows_with_realized_pnl": 0
@@ -245,7 +245,7 @@
           "Bettor Summary (10+)",
           "Bettor Summary (5+)"
         ],
-        "hyperlinks_to_profiles": 4873,
+        "hyperlinks_to_profiles": 4875,
         "sample_profile_url": "https://polymarket.com/profile/0x5966db1fe50763c9e3c014d756369bad07e1f804",
         "table_counts": {
           "Read Me": 0,
